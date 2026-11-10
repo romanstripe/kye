@@ -11,7 +11,8 @@ export type RingInfo = {
   id: string; cat: string; name: string; sub: string; ws: number[]; wl?: Record<string, string>; dw?: number
   wall: number; metal: string | null; diy?: boolean; gemPick?: boolean; gem?: string; pave: { semi?: string; full?: string }
 }
-export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][] }
+// frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
+export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number }
 export type StageEls = { img: HTMLImageElement; tint: HTMLElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement }
 
 // ---- 조명 (원본 main13.js 14~30행)
@@ -43,10 +44,13 @@ const occJ = JI.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1,
 export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   const { img, tint, shadow: sh, out: outc } = els
   const sx2 = sh.getContext('2d'), ox = outc.getContext('2d')
-  const N = hand.N, P = hand.P, LMS = hand.LMS
-  const frameUrl = (i) => `/demo/${String(i).padStart(2, '0')}.jpg`
-  for (let i = 0; i < N; i++) new Image().src = frameUrl(i)   // 미리 받아두기
-  let cur = N - 1
+  let N = 0, P = [], LMS = [], frames = [], PMIN = 0, PMAX = 0, cur = 0
+  let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
+  function setHand(h) {
+    N = h.N; P = h.P; LMS = h.LMS; frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
+    frames.forEach(u => { new Image().src = u })   // 미리 받아두기
+    cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
+  }
 
   let LIGHT = 'office'
   function applyLight() {
@@ -93,7 +97,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   function dorsal(i) {
     const s = new THREE.Vector3()
     for (let k = -2; k <= 2; k++) { const L = LMS[Math.max(0, Math.min(N - 1, i + k))]; if (!L) continue; const a = V(L, 5).sub(V(L, 0)), b = V(L, 17).sub(V(L, 0)); s.add(a.cross(b).normalize()) }
-    const Lr = LMS[N - 1], ref = V(Lr, 5).sub(V(Lr, 0)).cross(V(Lr, 17).sub(V(Lr, 0))); if (ref.z < 0) s.negate(); return s.normalize()
+    const Lr = LMS[PMAX], ref = V(Lr, 5).sub(V(Lr, 0)).cross(V(Lr, 17).sub(V(Lr, 0))); if (ref.z < 0) s.negate(); return s.normalize()
   }
   function frameFor(axis, nrm, bl = 0.4) { // 손등 방향(축에 수직) 구하고 회전 만들기
     const Y = nrm.clone().sub(axis.clone().multiplyScalar(nrm.dot(axis)))
@@ -151,10 +155,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     })
   }
 
-  // 정면에 가까운 구간만 재생 (옆으로 많이 돈 프레임은 반지가 떠 보여서 뺌)
-  const PMIN = 27, PMAX = N - 1
   function show(i = cur) {
-    cur = Math.max(PMIN, Math.min(N - 1, Math.round(i))); img.src = frameUrl(cur)
+    cur = Math.max(PMIN, Math.min(PMAX, Math.round(i))); img.src = frames[cur]
     place(P[cur]); renderer.render(S.scene, cam); composite(); shadow()
   }
 
@@ -169,9 +171,33 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     rebuild(); show()
   }
 
+  // ---- 썸네일: 같은 렌더러로 작은 칸에 반지를 하나씩 그려 이미지로
+  function makeThumbs() {
+    const thumbs = {}
+    const tScene = new THREE.Scene(); tScene.environment = LIGHTS.store.env; tScene.add(new THREE.AmbientLight(0xffffff, 0.25 * LI))
+    const tk = new THREE.DirectionalLight(0xffffff, 1.3 * LI); tk.position.set(-0.4, 1, 0.8); tScene.add(tk)
+    const tCam = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100); tCam.position.z = 50
+    const SZ = 136, pr = renderer.getPixelRatio(), tc = document.createElement('canvas'); tc.width = tc.height = SZ; const tx = tc.getContext('2d')
+    const keep = { CI: S.CI, WMM: S.WMM, WALL: S.WALL, METAL: S.METAL, PAVE: S.PAVE, GW: S.GW, GEM: S.GEM }; S.scene = tScene; clip.set(new THREE.Vector3(0, 0, 1), 1000)
+    renderer.setScissorTest(true); renderer.setViewport(0, 0, SZ / pr, SZ / pr); renderer.setScissor(0, 0, SZ / pr, SZ / pr); renderer.toneMappingExposure = 1.3
+    const axis = new THREE.Vector3(0, 0.62, 0.78).normalize()
+    CAT.forEach((c, i) => {
+      S.CI = i; S.WMM = c.ws[c.dw || 0]; S.WALL = c.wall; S.METAL = c.metal; S.PAVE = c.id === 'IC' ? 'semi' : 'none'; S.GW = 0; if (c.gem) S.GEM = c.gem; rebuild()
+      const Rin = 0.58, pxmm = Rin / (S.FD / 2), pos = new THREE.Vector3(0, c.id === 'SOL' || c.id === 'ND' ? -0.25 : -0.05, 0), { qR, qH } = frameFor(axis, new THREE.Vector3(0, 0.78, -0.62), 0)
+      setRing(S.ring, qR, pos, Rin, S.WMM * pxmm, axis, 0, paveCfg())
+      const head = S.head
+      if (head) { head.quaternion.copy(qH); head.position.copy(pos); head.scale.setScalar(pxmm); head.visible = true }
+      renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(tScene, tCam)
+      tx.clearRect(0, 0, SZ, SZ); tx.drawImage(cv, 0, cv.height - SZ, SZ, SZ, 0, 0, SZ, SZ); thumbs[c.id] = tc.toDataURL()
+    })
+    dispose(S.ring); dispose(S.ring2); S.ring = S.ring2 = null; if (S.head) { tScene.remove(S.head); S.head = null }
+    S.scene = mainScene; renderer.setScissorTest(false); renderer.setViewport(0, 0, IW, IH)
+    Object.assign(S, keep)
+    return thumbs
+  }
+
   // 가만히 있어도 반짝이게: 파베 알이 하나씩 반짝이고, 큰 알과 조명이 아주 살짝 움직임 (초당 15번)
   // 손 영상 자동 재생: 앞뒤로 계속 왕복 (초당 10장). 손으로 끌면 멈췄다가 1.5초 뒤 다시 돎
-  let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
   let lastTw = 0, raf = 0
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle)
@@ -195,9 +221,11 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     renderer.render(S.scene, cam); composite(); shadow()
   }
 
-  applyLight(); rebuild(); show()
+  setHand(hand); applyLight(); const thumbs = makeThumbs(); rebuild(); show()
   raf = requestAnimationFrame(twinkle)
   return {
+    thumbs,
+    setHand(h: HandData) { setHand(h); show(PMAX) },
     dragStart(x: number, y: number) { dragX = x; dragY = y; drag0 = cur },
     dragMove(x: number, y: number, w: number) {
       if (dragX === null) return

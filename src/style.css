@@ -34,5 +34,15 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .grab-btn { display: block; width: 100%; border: 0; background: none; padding: 4px 0 10px; cursor: pointer; font: inherit; color: var(--ink); touch-action: none; }
 .grab-t { display: none; font-size: 13.5px; font-weight: 500; margin-top: 8px; }
 .sheet.collapsed .grab-t { display: block; }
-.sheet-body { min-height: 150px; padding: 0 20px; }
-.empty { margin: 40px 0; text-align: center; font-size: 13px; color: var(--sub); }
+@media (prefers-reduced-motion: no-preference) { .card { transition: transform 0.12s; } }
+.wheel { display: flex; gap: 4px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 16px calc(50% - 41px) 2px; scrollbar-width: none; }
+.wheel::-webkit-scrollbar { display: none; }
+.card { flex: 0 0 78px; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; font: inherit; color: var(--sub); cursor: pointer; padding: 0; transform-origin: 50% 70%; }
+.card img { width: 62px; height: 62px; border-radius: 50%; background: #fff; display: block; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07); }
+.card .n { font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+.card[aria-current='true'] img { box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--ink); }
+.card[aria-current='true'] .n { color: var(--ink); font-weight: 600; }
+.tools { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 0; flex-wrap: wrap; }
+.chip { height: 36px; font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--ink); padding: 9px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06); }
+.chip:disabled { color: var(--sub); cursor: default; }
+.note { font-size: 12.5px; font-weight: 500; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); padding: 9px 13px; border-radius: 14px; }

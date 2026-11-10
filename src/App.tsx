@@ -1,9 +1,13 @@
 import { useRef, useState } from 'react'
 import HandStage from './HandStage.tsx'
+import type { Menu } from './HandStage.tsx'
+import Wheel from './Wheel.tsx'
 
 export default function App() {
-  // 토스 규칙: 처음 들어올 때 바텀시트가 자동으로 튀어나오면 안 됨 → 접힌 채로 시작
-  const [open, setOpen] = useState(false)
+  // 처음부터 펼쳐진 채로 보임 (애니메이션으로 튀어나오지 않음). 접힌 채로 시작하려면 false
+  const [open, setOpen] = useState(true)
+  const [menu, setMenu] = useState<Menu | null>(null)
+  const [sel, setSel] = useState('')
   const startY = useRef<number | null>(null)
 
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -22,7 +26,12 @@ export default function App() {
   return (
     <div className="app">
       <div className="stage">
-        <HandStage />
+        <HandStage
+          onReady={(m) => {
+            setMenu(m)
+            setSel(m.initial)
+          }}
+        />
       </div>
 
       <section className={`sheet${open ? '' : ' collapsed'}`} aria-label="반지 고르기">
@@ -35,11 +44,21 @@ export default function App() {
           onPointerCancel={() => (startY.current = null)}
         >
           <span className="grab" />
-          <span className="grab-t">▲ 반지 고르기</span>
+          <span className="grab-t">▲ {menu?.rings.find((r) => r.id === sel)?.name ?? ''} · 반지 고르기</span>
         </button>
         {open && (
-          <div className="sheet-body">
-            <p className="empty">반지 목록이 여기에 들어와요</p>
+          <div>
+            {menu && (
+              <Wheel
+                rings={menu.rings}
+                thumbs={menu.thumbs}
+                sel={sel}
+                onPick={(id) => {
+                  menu.pick(id)
+                  setSel(id)
+                }}
+              />
+            )}
           </div>
         )}
       </section>

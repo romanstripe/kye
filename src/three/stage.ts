@@ -11,7 +11,7 @@ export type RingInfo = {
   id: string; cat: string; name: string; sub: string; ws: number[]; wl?: Record<string, string>; dw?: number
   wall: number; metal: string | null; diy?: boolean; gemPick?: boolean; gem?: string; pave: { semi?: string; full?: string }
 }
-export type HandData = { frame: number; N: number; P: number[]; LMS: Record<string, number[][]> }
+export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][] }
 export type StageEls = { img: HTMLImageElement; tint: HTMLElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement }
 
 // ---- 조명 (원본 main13.js 14~30행)
@@ -43,9 +43,10 @@ const occJ = JI.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1,
 export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   const { img, tint, shadow: sh, out: outc } = els
   const sx2 = sh.getContext('2d'), ox = outc.getContext('2d')
-  const N = hand.N, P = []; P[hand.frame] = hand.P
-  const LMS = []; Object.entries(hand.LMS).forEach(([k, v]) => { LMS[+k] = v })
-  let cur = hand.frame
+  const N = hand.N, P = hand.P, LMS = hand.LMS
+  const frameUrl = (i) => `/demo/${String(i).padStart(2, '0')}.jpg`
+  for (let i = 0; i < N; i++) new Image().src = frameUrl(i)   // 미리 받아두기
+  let cur = N - 1
 
   let LIGHT = 'office'
   function applyLight() {
@@ -150,7 +151,10 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     })
   }
 
-  function show() {
+  // 정면에 가까운 구간만 재생 (옆으로 많이 돈 프레임은 반지가 떠 보여서 뺌)
+  const PMIN = 27, PMAX = N - 1
+  function show(i = cur) {
+    cur = Math.max(PMIN, Math.min(N - 1, Math.round(i))); img.src = frameUrl(cur)
     place(P[cur]); renderer.render(S.scene, cam); composite(); shadow()
   }
 
@@ -166,9 +170,16 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
 
   // 가만히 있어도 반짝이게: 파베 알이 하나씩 반짝이고, 큰 알과 조명이 아주 살짝 움직임 (초당 15번)
+  // 손 영상 자동 재생: 앞뒤로 계속 왕복 (초당 10장). 손으로 끌면 멈췄다가 1.5초 뒤 다시 돎
+  let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
   let lastTw = 0, raf = 0
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle)
+    if (!document.hidden && dragX === null && now > resumeAt && now - lastPlay > 100) {
+      lastPlay = now; let n = cur + playDir
+      if (n < PMIN || n > PMAX) { playDir = -playDir; n = Math.max(PMIN, Math.min(PMAX, cur + playDir)) }
+      show(n)
+    }
     if (document.hidden || now - lastTw < 66 || !S.MASK) return; lastTw = now; const t = now / 1000, head = S.head;
     [S.ring, S.ring2].forEach(g => {
       if (!g) return; const s = g.userData.stones; if (!s.visible || !s.count) return
@@ -187,6 +198,13 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   applyLight(); rebuild(); show()
   raf = requestAnimationFrame(twinkle)
   return {
+    dragStart(x: number, y: number) { dragX = x; dragY = y; drag0 = cur },
+    dragMove(x: number, y: number, w: number) {
+      if (dragX === null) return
+      const dx = x - dragX, dy = dragY - y
+      show(drag0 + (Math.abs(dy) > Math.abs(dx) ? dy : dx) / (w || 300) * N * 1.2)
+    },
+    dragEnd() { dragX = null; resumeAt = performance.now() + 1500 },
     pick(id: string) { const i = CAT.findIndex(c => c.id === id); if (i >= 0) pickRing(i) },
     stop() { cancelAnimationFrame(raf); dispose(S.ring); dispose(S.ring2); if (S.head) { S.scene.remove(S.head); S.head = null }; S.ring = S.ring2 = null },
   }

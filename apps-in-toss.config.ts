@@ -1,7 +1,7 @@
-import { defineConfig } from '@apps-in-toss/web-framework/config';
+import { defineConfig } from "@apps-in-toss/web-framework/config";
 
 export default defineConfig({
-  appName: '껴보링',
+  appName: "ring-on-it",
   permissions: [],
-  webBundleDir: 'kyeoboring',
+  webBundleDir: "dist",
 });

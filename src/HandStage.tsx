@@ -34,6 +34,7 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
   const demo = useRef<HandData | null>(null)
   const mine = useRef<HandData | null>(null)
   const [busy, setBusy] = useState<number | null>(null) // 처리한 프레임 수
+  const [stage, setStage] = useState('')
   const [custom, setCustom] = useState(false)
   const [msg, setMsg] = useState('')
   const [playing, setPlaying] = useState(true)
@@ -104,7 +105,7 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
     setMsg('')
     setBusy(0)
     try {
-      const hand = await analyzeVideo(f, (n) => setBusy(n))
+      const hand = await analyzeVideo(f, (n, _t, st) => (setBusy(n), st && setStage(st)))
       const old = mine.current
       mine.current = hand
       stageRef.current?.setHand(hand)
@@ -195,7 +196,7 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
           디버그
         </button>
         <button className="chip" disabled={busy !== null} onClick={() => file.current?.click()}>
-          {busy === null ? '내 손으로 해보기' : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
+          {busy === null ? '내 손으로 해보기' : busy === 0 && stage ? stage : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
         </button>
         {custom && busy === null && (
           <button className="chip" onClick={useDemo}>

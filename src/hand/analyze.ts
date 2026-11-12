@@ -17,20 +17,12 @@ function getLandmarker() {
   landmarker ??= (async () => {
     const { HandLandmarker } = await import('@mediapipe/tasks-vision')
     const wasm = WASM
-    const make = (delegate: 'GPU' | 'CPU') =>
-      HandLandmarker.createFromOptions(wasm, {
-        baseOptions: { modelAssetPath: '/mediapipe/hand_landmarker.task', delegate },
-        runningMode: 'IMAGE',
-        numHands: 1,
-      })
-    // 사파리(아이폰 포함)는 GPU 모드에서 손이 안 잡히는 일이 있어 처음부터 CPU로
-    const safari = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) || /iP(hone|ad|od)/.test(navigator.userAgent)
-    if (safari) return await make('CPU')
-    try {
-      return await make('GPU')
-    } catch {
-      return await make('CPU')
-    }
+    // GPU 모드는 휴대폰 브라우저에서 멈추기도 해서 CPU만 씀 (프레임 40장이라 충분히 빠름)
+    return HandLandmarker.createFromOptions(wasm, {
+      baseOptions: { modelAssetPath: '/mediapipe/hand_landmarker.task', delegate: 'CPU' },
+      runningMode: 'IMAGE',
+      numHands: 1,
+    })
   })()
   landmarker.catch(() => (landmarker = null))
   return landmarker
@@ -100,7 +92,8 @@ function buildHand(frames: string[], found: (number[][] | null)[]): HandData {
   return { N: found.length, P, LMS, frames, pmin, pmax, custom: true }
 }
 
-export async function analyzeVideo(file: File, onProgress: (done: number, total: number) => void): Promise<HandData> {
+export async function analyzeVideo(file: File, onProgress: (done: number, total: number, stage?: string) => void): Promise<HandData> {
+  onProgress(0, FRAME_COUNT, '손 인식 모델 불러오는 중')
   const lm = await timeout(getLandmarker(), 40000, '손 인식 모델을 불러오지 못했어요')
   const src = URL.createObjectURL(file)
   const frames: string[] = []
@@ -115,6 +108,7 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     v.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none'
     document.body.appendChild(v)
     cleanup = () => v.remove()
+    onProgress(0, FRAME_COUNT, '영상 읽는 중')
     const loaded = once(v, 'loadeddata')
     v.load()
     // 아이폰 사파리는 재생을 시작해야 첫 화면을 읽어 주는 일이 있어 잠깐 재생
@@ -138,6 +132,7 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     const k = Math.max(IW / vw, IH / vh) // 화면을 꽉 채우도록 가운데를 잘라 맞춤
     const dw = vw * k, dh = vh * k
 
+    onProgress(0, FRAME_COUNT, '첫 프레임 분석 중')
     const found: (number[][] | null)[] = []
     for (let i = 0; i < FRAME_COUNT; i++) {
       await seek(v, Math.min(duration - 0.05, (i / (FRAME_COUNT - 1)) * duration))

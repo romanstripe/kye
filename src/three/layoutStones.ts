@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/main13.js 의 layoutStones 를 모양·수치 그대로 옮김)
+// @ts-nocheck  (원본 데모 의 layoutStones 를 모양·수치 그대로 옮김)
 import * as THREE from 'three'
 import { S, H, TAU, wrap } from './shared.ts'
 import { spB, spAt, HK } from './makeRing.ts'

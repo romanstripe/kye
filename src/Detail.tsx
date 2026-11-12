@@ -6,7 +6,7 @@ import { CUTS as CUTS_, GEMS as GEMS_, NUDO_GEMS, SIX, stoneSize } from './three
 const CUTS: Record<string, { n: string }> = CUTS_
 const GEMS: Record<string, { n: string }> = GEMS_
 
-// 반지 자세히 설정 (reference/main13.js renderDetail 과 같은 항목·같은 순서)
+// 반지 자세히 설정 (원본 데모 renderDetail 과 같은 항목·같은 순서)
 type Opt = [string | number | boolean, string, string?]
 const METAL: Opt[] = [['PG', '로즈골드', '#e9b49e'], ['YG', '옐로골드', '#e8c06a'], ['WG', '화이트골드', '#dfe2e6']]
 const SAME_METAL: Opt[] = [['same', '반지와 같은 색'], ...METAL]

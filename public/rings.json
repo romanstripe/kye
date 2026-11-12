@@ -1,6 +1,6 @@
 {
   "version": "demo-v51",
-  "note": "길이는 mm. 안쪽 둘레 = 40 + 호수. pave.byWidth = 폭별 파베 배치 설정(reference/main13.js layoutStones가 읽는 값)",
+  "note": "길이는 mm. 안쪽 둘레 = 40 + 호수. pave.byWidth = 폭별 파베 배치 설정(원본 데모 layoutStones가 읽는 값)",
   "rings": [
     {
       "id": "B",

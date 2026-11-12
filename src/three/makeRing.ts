@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/main13.js 의 밴드·무늬·파베 알·makeRing 을 모양·수치 그대로 옮김)
+// @ts-nocheck  (원본 데모 의 밴드·무늬·파베 알·makeRing 을 모양·수치 그대로 옮김)
 import * as THREE from 'three'
 import { S, M, H, METALS, TAU, wrap, clip } from './shared.ts'
 import { gemEnv } from './sol.ts'

@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/main13.js 의 무빙원 알·누디 알(nudoGeo, makeNudo)을 모양·수치 그대로 옮김)
+// @ts-nocheck  (원본 데모 의 무빙원 알·누디 알(nudoGeo, makeNudo)을 모양·수치 그대로 옮김)
 import * as THREE from 'three'
 import { S, M, METALS, clip } from './shared.ts'
 import { GEMS, gemEnv, gemGeo } from './sol.ts'

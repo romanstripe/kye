@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/sol.js 를 모양·수치 그대로 옮김)
+// @ts-nocheck  (원본 데모 를 모양·수치 그대로 옮김)
 // ---- 오리지널 솔리테어: 컷 × 캐럿 × 알 종류. 크기는 실제 mm (1캐럿 다이아 기준 치수 × 캐럿^(1/3) × 밀도 보정)
 import * as THREE from 'three'
 import { S, M, METALS, clip, pmg } from './shared.ts'

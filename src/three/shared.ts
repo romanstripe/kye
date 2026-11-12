@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/main13.js 를 모양·수치 그대로 옮긴 파일들은 타입 검사를 끔)
+// @ts-nocheck  (원본 데모 를 모양·수치 그대로 옮긴 파일들은 타입 검사를 끔)
 // 원본 main13.js 맨 위의 three 설정과 여러 파일이 같이 쓰는 값들.
 import * as THREE from 'three'
 

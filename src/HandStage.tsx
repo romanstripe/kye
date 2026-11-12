@@ -22,7 +22,6 @@ const IH = 854
 // 내 영상을 올리면 그 손으로, 실패하거나 안 올리면 예시 손으로 보여줌
 export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
   const img = useRef<HTMLImageElement>(null)
-  const tint = useRef<HTMLDivElement>(null)
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
   const dbg = useRef<HTMLCanvasElement>(null)
@@ -63,7 +62,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
       }
       demo.current = hand
       stage = stageRef.current = createStage(
-        { img: img.current!, tint: tint.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo },
+        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo },
         rings,
         hand,
       )
@@ -137,7 +136,6 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
       >
         <div className="zw">
           <img ref={img} src="/demo/frames/41.jpg" alt="왼손 사진 위에 고른 반지" draggable={false} />
-          <div ref={tint} className="tint" />
           <canvas ref={shadow} />
           <canvas ref={out} />
           <canvas ref={dbg} width={IW * 2} height={IH * 2} />

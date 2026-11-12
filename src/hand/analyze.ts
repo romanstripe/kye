@@ -1,5 +1,5 @@
 // 영상 파일 → canvas로 40장 자르기 → MediaPipe로 프레임마다 손 좌표(21점) → 데모와 같은 P/LMS 형식으로.
-// 좌표는 480×854 화면 기준 px, z는 x와 같은 배율(×480). reference/data13.js 와 같은 규칙.
+// 좌표는 480×854 화면 기준 px, z는 x와 같은 배율(×480). 원본 데모 와 같은 규칙.
 import type { HandLandmarker } from '@mediapipe/tasks-vision'
 import wasmLoader from '@mediapipe/tasks-vision/vision_wasm_internal.js?url'
 import wasmBinary from '@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'
@@ -61,7 +61,7 @@ function ringPose(L: number[][]) {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, sx / n3, sy / n3, sz / n3, 0.31 * n2]
 }
 
-// 프레임 사이 떨림을 줄이는 5점 평균 (reference/apply_meas.py 와 같은 [1,2,3,2,1])
+// 프레임 사이 떨림을 줄이는 5점 평균 (원본 데모 와 같은 [1,2,3,2,1])
 function smooth(rows: number[][]) {
   const k = [1, 2, 3, 2, 1], n = rows.length
   return rows.map((_, i) => {

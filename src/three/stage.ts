@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/main13.js 의 조명·배치·합성·반짝임을 모양·수치 그대로 옮김. 손 사진은 한 장(frame 41)만 씀)
+// @ts-nocheck  (조명·배치·합성·반짝임)
 import * as THREE from 'three'
 import { S, M, H, TAU, IW, IH, LI, cv, renderer, mainScene, cam, pmg, clip } from './shared.ts'
 import { GEMS, NUDO_GEMS, makeHead } from './sol.ts'
@@ -17,25 +17,20 @@ export type RingInfo = {
 }
 // frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
 export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number; custom?: boolean }
-export type StageEls = { img: HTMLImageElement; tint: HTMLElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void }
+export type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void }
 
-// ---- 조명 (원본 main13.js 14~30행)
+// ---- 조명
 function makeEnv(bg, lights) {
   const es = new THREE.Scene()
   es.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: bg })))
   lights.forEach(([c, x, y, z, s]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); p.position.set(x, y, z); p.lookAt(0, 0, 0); es.add(p) })
   return pmg.fromScene(es, 0.02).texture
 }
-const LIGHTS = {
-  store: { env: makeEnv(0x2e2e31, [[0xcfcfcf, 0, 42, 0, 16], [0xffffff, 20, 38, 10, 7], [0xffffff, -20, 38, 10, 7], [0xffffff, 0, 15, 45, 18], [0xffffff, 38, 10, 18, 8], [0xffffff, -38, 10, 18, 8], [0xffffff, -20, 25, -35, 16], [0xeef2ff, 25, -10, 35, 10], [0x8c8a88, 0, -45, 0, 60]]),
-    exp: 1.35, key: [0xffffff, 1.6], img: 'brightness(1.05) contrast(1.03)', tint: 'rgba(255,255,255,0.05)', blend: 'screen' },
-  sun: { env: makeEnv(0x24190f, [[0xffd49a, 45, 15, 10, 40], [0xffe2b8, 0, 40, 0, 30], [0xbfd2ff, -40, 30, 0, 20], [0x6b5a46, 0, -45, 0, 60]]),
-    exp: 1.2, key: [0xffd6a0, 1.4], img: 'saturate(1.05) brightness(1.03)', tint: 'rgba(255,190,120,0.10)', blend: 'soft-light' },
-  office: { env: makeEnv(0x101211, [[0xffffff, 0, 45, 0, 18], [0xf2f7f5, 30, 40, 0, 10], [0xf2f7f5, -30, 40, 0, 10], [0xe8efed, 0, 12, 45, 10], [0xffffff, -40, 5, -20, 8], [0x2e3432, 0, -45, 0, 60]]),
-    exp: 1.3, key: [0xf2f6f5, 1.1], img: 'none', tint: 'transparent', blend: 'normal' },
-}
+const STORE_ENV = makeEnv(0x2e2e31, [[0xcfcfcf, 0, 42, 0, 16], [0xffffff, 20, 38, 10, 7], [0xffffff, -20, 38, 10, 7], [0xffffff, 0, 15, 45, 18], [0xffffff, 38, 10, 18, 8], [0xffffff, -38, 10, 18, 8], [0xffffff, -20, 25, -35, 16], [0xeef2ff, 25, -10, 35, 10], [0x8c8a88, 0, -45, 0, 60]])   // 썸네일용
+mainScene.environment = makeEnv(0x101211, [[0xffffff, 0, 45, 0, 18], [0xf2f7f5, 30, 40, 0, 10], [0xf2f7f5, -30, 40, 0, 10], [0xe8efed, 0, 12, 45, 10], [0xffffff, -40, 5, -20, 8], [0x2e3432, 0, -45, 0, 60]])   // 손 위 반지용(사무실 조명)
+renderer.toneMappingExposure = 1.3
 mainScene.add(new THREE.AmbientLight(0xffffff, 0.15 * LI))
-const key = new THREE.DirectionalLight(0xffffff, 1.1 * LI); key.position.set(-0.4, 1, 0.8); mainScene.add(key)
+const key = new THREE.DirectionalLight(0xf2f6f5, 1.1 * LI); key.position.set(-0.4, 1, 0.8); mainScene.add(key)
 const rim = new THREE.DirectionalLight(0xffffff, 0.7 * LI); rim.position.set(0.6, -0.3, -0.2); mainScene.add(rim)   // 뒤쪽 테두리 빛: 반지 가장자리가 밝게 떠서 두께가 보임
 
 // 안 보이는 3D 손 견본(깊이만): 손가락 뒤로 가는 반지 부분을 가림
@@ -46,7 +41,7 @@ const JI = [13, 14, 15, 9, 10, 11, 17, 18, 19, 5, 6, 7]
 const occJ = JI.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), occMat); m.renderOrder = -1; mainScene.add(m); return m })
 
 export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
-  const { img, tint, shadow: sh, out: outc } = els
+  const { img, shadow: sh, out: outc } = els
   const sx2 = sh.getContext('2d'), ox = outc.getContext('2d')
   let N = 0, P = [], LMS = [], frames = [], PMIN = 0, PMAX = 0, cur = 0
   let AUTO = true, zoom = false, zc = [240, 400]   // 자동 재생 / 가까이 보기 / 확대 중심
@@ -72,11 +67,6 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     masks.clear(); meas.clear(); inflight.clear(); warmId++; if (DEBUG || CUSTOM) warm(); report()
   }
 
-  let LIGHT = 'office'
-  function applyLight() {
-    const L = LIGHTS[LIGHT]; mainScene.environment = L.env; renderer.toneMappingExposure = L.exp; key.color.setHex(L.key[0]); key.intensity = L.key[1] * LI
-    img.style.filter = L.img; tint.style.background = L.tint; tint.style.mixBlendMode = L.blend
-  }
 
   function ringWall() { const c = CAT[S.CI]; return c.diy ? S.WALL : c.wall }
   function dispose(g) { if (!g) return; S.scene.remove(g); S.scene.remove(g.userData.stones) }
@@ -313,7 +303,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   // ---- 썸네일: 같은 렌더러로 작은 칸에 반지를 하나씩 그려 이미지로
   function makeThumbs() {
     const thumbs = {}
-    const tScene = new THREE.Scene(); tScene.environment = LIGHTS.store.env; tScene.add(new THREE.AmbientLight(0xffffff, 0.25 * LI))
+    const tScene = new THREE.Scene(); tScene.environment = STORE_ENV; tScene.add(new THREE.AmbientLight(0xffffff, 0.25 * LI))
     const tk = new THREE.DirectionalLight(0xffffff, 1.3 * LI); tk.position.set(-0.4, 1, 0.8); tScene.add(tk)
     const tCam = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100); tCam.position.z = 50
     const SZ = 136, pr = renderer.getPixelRatio(), tc = document.createElement('canvas'); tc.width = tc.height = SZ; const tx = tc.getContext('2d')
@@ -360,7 +350,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     renderer.render(S.scene, cam); composite(); shadow()
   }
 
-  setHand(hand); applyLight(); const thumbs = makeThumbs(); rebuild(); show()
+  setHand(hand); const thumbs = makeThumbs(); rebuild(); show()
   raf = requestAnimationFrame(twinkle)
   return {
     thumbs,

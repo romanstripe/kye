@@ -42,8 +42,12 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .card .n { font-size: 11.5px; font-weight: 500; white-space: nowrap; }
 .card[aria-current='true'] img { box-shadow: 0 0 0 1.5px #fff, 0 0 0 3px var(--ink); }
 .card[aria-current='true'] .n { color: var(--ink); font-weight: 600; }
-.tools { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 0; flex-wrap: wrap; }
+.tools { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 5px; padding: calc(12px + env(safe-area-inset-top, 0px)) 10px 0; flex-wrap: wrap; }
 .chip { height: 36px; font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--ink); padding: 9px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06); }
+.setb { padding-left: 12px; padding-right: 12px; }
+.setb[aria-expanded='true'] { background: var(--ink); color: #fff; }
+.playb { margin-left: auto; width: 36px; padding: 0; text-align: center; font-size: 11px; letter-spacing: -1px; }
+.chip[hidden] { display: none; }
 .chip:disabled { color: var(--sub); cursor: default; }
 .note { white-space: pre-line; font-size: 12.5px; font-weight: 500; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); padding: 9px 13px; border-radius: 14px; }
 

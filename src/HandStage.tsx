@@ -36,6 +36,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
   const [msg, setMsg] = useState('')
   const [playing, setPlaying] = useState(true)
   const [zoom, setZoom] = useState(false)
+  const [setOpen, setSetOpen] = useState(false)   // 반지 세트 패널 (아직 내용 없음)
   const [ho, setHo] = useState(17.5)
   const [hoOpen, setHoOpen] = useState(false)
   const hoBtn = useRef<HTMLButtonElement>(null)
@@ -138,15 +139,12 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
       </div>
       <div className="tools">
         <button
-          className="chip"
-          aria-pressed={!playing}
-          aria-label={playing ? '손 영상 멈추기' : '손 영상 재생'}
-          onClick={() => {
-            stageRef.current?.setPlaying(!playing)
-            setPlaying(!playing)
-          }}
+          className="chip setb"
+          aria-expanded={setOpen}
+          aria-controls="worn"
+          onClick={() => setSetOpen((o) => !o)}
         >
-          {playing ? '❚❚ 멈춤' : '▶ 재생'}
+          반지 세트
         </button>
         <button
           ref={hoBtn}
@@ -185,6 +183,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
         )}
         <button
           className="chip"
+          hidden
           aria-pressed={zoom}
           onClick={() => {
             stageRef.current?.setZoom(!zoom)
@@ -211,6 +210,17 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
             예시 손
           </button>
         )}
+        <button
+          className="chip playb"
+          aria-pressed={!playing}
+          aria-label={playing ? '손 영상 멈추기' : '손 영상 재생'}
+          onClick={() => {
+            stageRef.current?.setPlaying(!playing)
+            setPlaying(!playing)
+          }}
+        >
+          {playing ? '❚❚' : '▶'}
+        </button>
         {msg && <span className="note">{msg}</span>}
         {info && <span className="note">{info}</span>}
         <input

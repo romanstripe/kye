@@ -7,6 +7,10 @@ import { layoutStones } from './layoutStones.ts'
 import { skinMask } from '../hand/skin.ts'
 import type { SkinMask } from '../hand/skin.ts'
 import { makeSlider, makeNudo } from './heads.ts'
+import { STORE_ENV } from './lights.ts'
+import { SEGS, occ, JI, occJ } from './occluders.ts'
+import { measure, median } from '../hand/width.ts'
+import { drawHandDebug } from './debugDraw.ts'
 
 // public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
 export type PaveOpt = { label: string; byWidth: Record<string, any> }
@@ -19,26 +23,7 @@ export type RingInfo = {
 export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number; custom?: boolean }
 export type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void }
 
-// ---- 조명
-function makeEnv(bg, lights) {
-  const es = new THREE.Scene()
-  es.add(new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.MeshBasicMaterial({ side: THREE.BackSide, color: bg })))
-  lights.forEach(([c, x, y, z, s]) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(s, s), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide })); p.position.set(x, y, z); p.lookAt(0, 0, 0); es.add(p) })
-  return pmg.fromScene(es, 0.02).texture
-}
-const STORE_ENV = makeEnv(0x2e2e31, [[0xcfcfcf, 0, 42, 0, 16], [0xffffff, 20, 38, 10, 7], [0xffffff, -20, 38, 10, 7], [0xffffff, 0, 15, 45, 18], [0xffffff, 38, 10, 18, 8], [0xffffff, -38, 10, 18, 8], [0xffffff, -20, 25, -35, 16], [0xeef2ff, 25, -10, 35, 10], [0x8c8a88, 0, -45, 0, 60]])   // 썸네일용
-mainScene.environment = makeEnv(0x101211, [[0xffffff, 0, 45, 0, 18], [0xf2f7f5, 30, 40, 0, 10], [0xf2f7f5, -30, 40, 0, 10], [0xe8efed, 0, 12, 45, 10], [0xffffff, -40, 5, -20, 8], [0x2e3432, 0, -45, 0, 60]])   // 손 위 반지용(사무실 조명)
-renderer.toneMappingExposure = 1.3
-mainScene.add(new THREE.AmbientLight(0xffffff, 0.15 * LI))
-const key = new THREE.DirectionalLight(0xf2f6f5, 1.1 * LI); key.position.set(-0.4, 1, 0.8); mainScene.add(key)
-const rim = new THREE.DirectionalLight(0xffffff, 0.7 * LI); rim.position.set(0.6, -0.3, -0.2); mainScene.add(rim)   // 뒤쪽 테두리 빛: 반지 가장자리가 밝게 떠서 두께가 보임
 
-// 안 보이는 3D 손 견본(깊이만): 손가락 뒤로 가는 반지 부분을 가림
-const occMat = new THREE.MeshBasicMaterial({ colorWrite: false })
-const SEGS = [[13, 14, 0.92], [14, 15, 0.88], [15, 16, 0.8], [9, 10, 1.0], [10, 11, 0.95], [11, 12, 0.85], [17, 18, 0.85], [18, 19, 0.8], [19, 20, 0.72], [5, 6, 1.0], [6, 7, 0.95], [7, 8, 0.85], [0, 9, 1.6], [0, 13, 1.6], [0, 17, 1.5], [0, 5, 1.6]]
-const occ = SEGS.map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, false), occMat); m.renderOrder = -1; mainScene.add(m); return m })
-const JI = [13, 14, 15, 9, 10, 11, 17, 18, 19, 5, 6, 7]
-const occJ = JI.map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), occMat); m.renderOrder = -1; mainScene.add(m); return m })
 
 export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   const { img, shadow: sh, out: outc } = els
@@ -199,7 +184,6 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
   const masks = new Map<string, SkinMask>(), meas = new Map<string, any>(), inflight = new Map<string, Promise<void>>()
   let warmId = 0   // 손 영상이 바뀌면 올라가서, 이전 영상의 계산 결과를 버림
-  const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
   function ensureMask(i: number) {   // 프레임 i 의 마스크와 폭을 (아직 없으면) 계산
     const url = frames[i]; if (!url || masks.has(url)) return Promise.resolve()
     let p = inflight.get(url)
@@ -237,56 +221,11 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const now = cu ? (cu.w != null ? ` · 이 프레임 ${cu.w.toFixed(1)}px (소지 ${cu.kindP}·중지 ${cu.kindM})` : ' · 이 프레임은 제외') : ''
     els.onInfo(head + prog + now)
   }
-  // 13→14 가운데에서 손가락에 수직으로 소지선(17→18)·중지선(9→10)까지 걸어가며 양쪽 경계를 찾음.
-  // 경계 = 구간 안에서 마스크가 끝나는 곳, 마스크가 끝까지 이어지면(손가락이 붙음) 밝기가 가장 어두운 곳(손가락 사이 틈)
-  function measure(L, m: SkinMask) {
-    const a = L[13], b = L[14], c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]
-    let n = [-u[1], u[0]]
-    if ((L[9][0] - c[0]) * n[0] + (L[9][1] - c[1]) * n[1] < 0) n = [-n[0], -n[1]]   // +n = 중지 쪽, -n = 소지 쪽
-    const hit = (P, Q) => { const d = [Q[0] - P[0], Q[1] - P[1]], den = n[0] * d[1] - n[1] * d[0]; return Math.abs(den) < 1e-6 ? null : ((P[0] - c[0]) * d[1] - (P[1] - c[1]) * d[0]) / den }
-    const sM = hit(L[9], L[10]), sP = hit(L[17], L[18])
-    if (sM == null || sP == null || sM <= 2 || sP >= -2) return { c, n, w: null, limM: 60, limP: 60 }
-    const limM = sM, limP = -sP, fail = { c, n, w: null, limM, limP }
-    const skin = (x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
-    const lumaAt = (x, y) => { let t = 0; for (const o of [-2, 0, 2]) { const ix = Math.round((x + u[0] * o) * m.lw / IW), iy = Math.round((y + u[1] * o) * m.lh / IH); t += ix >= 0 && iy >= 0 && ix < m.lw && iy < m.lh ? m.luma[iy * m.lw + ix] : 255 } return t / 3 }
-    if (!skin(c[0], c[1])) return fail
-    const side = (sg, lim) => {
-      let s = 0; while (s < lim && skin(c[0] + n[0] * sg * (s + 0.25), c[1] + n[1] * sg * (s + 0.25))) s += 0.25
-      if (s < lim - 0.25) return { s, kind: '마스크' }
-      const prof = []; for (let t = 0.3 * lim; t <= 0.85 * lim; t += 0.5) prof.push([t, lumaAt(c[0] + n[0] * sg * t, c[1] + n[1] * sg * t)])
-      if (prof.length < 5) return null
-      const sm = prof.map((_, i) => { let q = 0, k = 0; for (let j = -2; j <= 2; j++) { const e = prof[i + j]; if (e) { q += e[1]; k++ } } return q / k })
-      let bi = 0; sm.forEach((v, i) => { if (v < sm[bi]) bi = i })
-      if (sm[bi] > 0.85 * median(sm)) return null   // 뚜렷하게 어두운 곳이 없으면 못 잡은 것
-      return { s: prof[bi][0], kind: '어두움' }
-    }
-    const rM = side(1, limM), rP = side(-1, limP)
-    if (!rM || !rP) return fail
-    return { c, n, limM, limP, w: rM.s + rP.s, A: [c[0] - n[0] * rP.s, c[1] - n[1] * rP.s], B: [c[0] + n[0] * rM.s, c[1] + n[1] * rM.s], kindM: rM.kind, kindP: rP.kind }
-  }
-  const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]]
   function drawDebug() {
     const cv2 = els.debug; if (!cv2) return
-    const x = cv2.getContext('2d'), k = cv2.width / IW; x.clearRect(0, 0, cv2.width, cv2.height)
-    const L = DEBUG && LMS[cur]; if (!L) return
-    const mk = masks.get(frames[cur])
-    if (mk) x.drawImage(mk.overlay, 0, 0, cv2.width, cv2.height)
-    x.lineCap = 'round'
-    x.strokeStyle = '#39d98a'; x.lineWidth = 2 * k
-    BONES.forEach(([a, b]) => { if ((a === 13 && b === 14)) return; x.beginPath(); x.moveTo(L[a][0] * k, L[a][1] * k); x.lineTo(L[b][0] * k, L[b][1] * k); x.stroke() })
-    x.strokeStyle = '#ff2d2d'; x.lineWidth = 4 * k; x.beginPath(); x.moveTo(L[13][0] * k, L[13][1] * k); x.lineTo(L[14][0] * k, L[14][1] * k); x.stroke()
-    const r = mk && meas.get(frames[cur])
-    if (r) { // 폭 재기: 소지선~중지선 사이 수직선(노랑) + 경계 두 점(초록) + 폭 숫자
-      x.strokeStyle = '#ffd25a'; x.lineWidth = 2 * k; x.beginPath(); x.moveTo((r.c[0] - r.n[0] * r.limP) * k, (r.c[1] - r.n[1] * r.limP) * k); x.lineTo((r.c[0] + r.n[0] * r.limM) * k, (r.c[1] + r.n[1] * r.limM) * k); x.stroke()
-      if (r.w != null) {
-        ;[r.A, r.B].forEach(p => { x.beginPath(); x.arc(p[0] * k, p[1] * k, 6 * k, 0, TAU); x.fillStyle = '#19d96b'; x.fill(); x.lineWidth = 2 * k; x.strokeStyle = '#fff'; x.stroke() })
-      }
-      const txt = r.w == null ? '제외' : `${r.w.toFixed(1)}px`
-      x.font = `700 ${15 * k}px sans-serif`; x.lineWidth = 4 * k; x.strokeStyle = 'rgba(0,0,0,.75)'; x.fillStyle = '#fff'
-      x.strokeText(txt, (r.c[0] + 10) * k, (r.c[1] - 10) * k); x.fillText(txt, (r.c[0] + 10) * k, (r.c[1] - 10) * k)
-    }
-    L.forEach((p, i) => { const big = i === 13 || i === 14; x.beginPath(); x.arc(p[0] * k, p[1] * k, (big ? 7 : 3) * k, 0, TAU); x.fillStyle = big ? '#ff2d2d' : '#ffffff'; x.fill(); x.lineWidth = 1.2 * k; x.strokeStyle = big ? '#fff' : '#39d98a'; x.stroke() })
+    const L = DEBUG && LMS[cur]
+    if (!L) { cv2.getContext('2d').clearRect(0, 0, cv2.width, cv2.height); return }
+    drawHandDebug(cv2, L, masks.get(frames[cur]), meas.get(frames[cur]))
   }
 
   // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐

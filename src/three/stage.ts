@@ -5,11 +5,13 @@ import { GEMS, NUDO_GEMS, makeHead } from './sol.ts'
 import { makeRing, TW } from './makeRing.ts'
 import { layoutStones } from './layoutStones.ts'
 import { makeSlider, makeNudo } from './heads.ts'
-import { PAVE_CFG } from './pave.ts'
 
+// public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
+export type PaveOpt = { label: string; byWidth: Record<string, any> }
 export type RingInfo = {
-  id: string; cat: string; name: string; sub: string; ws: number[]; wl?: Record<string, string>; dw?: number
-  wall: number; metal: string | null; diy?: boolean; gemPick?: boolean; gem?: string; pave: { semi?: string; full?: string }
+  id: string; name: string; sub: string; widths: number[]; widthLabels?: Record<string, string>; defaultWidth: number
+  wall: number; metal: string | null; diy: boolean; rimColor: boolean; gemPick: boolean; gem: string | null
+  pave: Partial<Record<'semi' | 'alt' | 'full' | 'both', PaveOpt>>
 }
 // frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
 export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number }
@@ -45,6 +47,17 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   const { img, tint, shadow: sh, out: outc } = els
   const sx2 = sh.getContext('2d'), ox = outc.getContext('2d')
   let N = 0, P = [], LMS = [], frames = [], PMIN = 0, PMAX = 0, cur = 0
+  let AUTO = true, zoom = false, zc = [240, 400]   // 자동 재생 / 가까이 보기 / 확대 중심
+
+  // 가까이: 반지 자리를 2.6배 확대해서 보여줌 (손 사진·반지 캔버스를 같이 키움)
+  const zw = img.parentElement, box = zw.parentElement
+  function applyZoom() {
+    const Z = 2.6, k = box.clientWidth / IW
+    if (!zoom) { zw.style.transform = 'none'; return }
+    const tx = Math.min(0, Math.max(box.clientWidth * (1 - Z), box.clientWidth / 2 - zc[0] * k * Z)), ty = Math.min(0, Math.max(box.clientHeight * (1 - Z), box.clientHeight / 2 - zc[1] * k * Z))
+    zw.style.transform = `translate(${tx}px,${ty}px) scale(${Z})`
+  }
+  addEventListener('resize', applyZoom)
   let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
   function setHand(h) {
     N = h.N; P = h.P; LMS = h.LMS; frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
@@ -68,7 +81,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (c.id === 'ND') S.head = makeNudo(ringWall(), S.METAL, S.WMM)
     S.ring2 = S.GW > 0 ? makeRing('S', Math.min(ringWall(), 1.5), S.GMETAL === 'same' ? (S.METAL || 'YG') : S.GMETAL, S.GW) : null
   }
-  function paveCfg() { const c = CAT[S.CI]; const f = PAVE_CFG[c.id]?.[S.PAVE]; return S.PAVE !== 'none' && f ? f(S.WMM) : null }
+  // 파베 설정은 rings.json 에서 읽음. layoutStones 가 ys 배열 등을 건드리므로 매번 복사해서 넘김
+  function paveCfg() { const c = CAT[S.CI]; const v = S.PAVE !== 'none' && c.pave?.[S.PAVE]?.byWidth?.[String(S.WMM)]; return v ? structuredClone(v) : null }
 
   // 반지 놓기: 로컬 y = 손가락 축, 로컬 +z = 손등 쪽
   function setRing(g, q, pos, Rin, bandW, axis, off, cfg, sx = 1) {   // sx: 화면에서 손가락 옆 방향으로만 조임 (반지 모양은 그대로 둥글게)
@@ -99,6 +113,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     for (let k = -2; k <= 2; k++) { const L = LMS[Math.max(0, Math.min(N - 1, i + k))]; if (!L) continue; const a = V(L, 5).sub(V(L, 0)), b = V(L, 17).sub(V(L, 0)); s.add(a.cross(b).normalize()) }
     const Lr = LMS[PMAX], ref = V(Lr, 5).sub(V(Lr, 0)).cross(V(Lr, 17).sub(V(Lr, 0))); if (ref.z < 0) s.negate(); return s.normalize()
   }
+  let TILT = 1.8
+  function tiltUp(d) { const v = new THREE.Vector3(d.x * TILT, d.y * TILT, d.z); return v.normalize() }   // 손등 기울기를 TILT배로 키움
   function frameFor(axis, nrm, bl = 0.4) { // 손등 방향(축에 수직) 구하고 회전 만들기
     const Y = nrm.clone().sub(axis.clone().multiplyScalar(nrm.dot(axis)))
     const camv = new THREE.Vector3(0, 0, 1).sub(axis.clone().multiplyScalar(axis.z))
@@ -114,7 +130,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const FD = S.FD, GW = S.GW, WMM = S.WMM, head = S.head
     const axis = new THREE.Vector3(dx, -dy, -dz * DZK).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
     const frK = fr * FRK, pxmm = 2 * frK / FD; S.pxmmNow = pxmm; const Rin = frK, bandW = WMM * pxmm, W2 = GW * pxmm, gap = 0.2 * pxmm
-    const { qR, qH } = frameFor(axis, dorsal(cur))
+    const { qR, qH } = frameFor(axis, tiltUp(dorsal(cur)), 0.1)   // 손이 돈 만큼보다 조금 더 돌려서 알의 옆면(크라운·발)이 보이게
     pos.add(new THREE.Vector3(1, 0, 0).applyQuaternion(qR).multiplyScalar(Rin * LSH))   // LSH: 반지를 손가락 옆 방향으로 살짝 옮김 (이 영상에서 왼쪽으로 치우쳐 보여서)
     setRing(ring, qR, pos, Rin, bandW, axis, 0, paveCfg(), SQZ)
     if (ring2) setRing(ring2, qR, pos, Rin, W2, axis, bandW / 2 + gap + W2 / 2, S.GPAVE ? { ys: [0], arc: 1, d: GW * 0.75 } : null, SQZ)
@@ -157,7 +173,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
 
   function show(i = cur) {
     cur = Math.max(PMIN, Math.min(PMAX, Math.round(i))); img.src = frames[cur]
-    place(P[cur]); renderer.render(S.scene, cam); composite(); shadow()
+    if (P[cur]) zc = [P[cur][0], P[cur][1]]
+    place(P[cur]); renderer.render(S.scene, cam); composite(); shadow(); applyZoom()
   }
 
   // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐
@@ -166,7 +183,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
 
   function pickRing(i) {
     if (i === S.CI && S.ring) return
-    S.CI = i; const c = CAT[i]; S.WMM = c.ws[c.dw || 0]; S.WALL = c.wall; S.METAL = c.metal; S.PAVE = 'none'
+    S.CI = i; const c = CAT[i]; S.WMM = c.defaultWidth; S.WALL = c.wall; S.METAL = c.metal; S.PAVE = 'none'
     if (c.gem) S.GEM = c.gem; else if (c.id === 'SOL' && NUDO_GEMS.includes(S.GEM)) S.GEM = 'dia'
     rebuild(); show()
   }
@@ -182,7 +199,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     renderer.setScissorTest(true); renderer.setViewport(0, 0, SZ / pr, SZ / pr); renderer.setScissor(0, 0, SZ / pr, SZ / pr); renderer.toneMappingExposure = 1.3
     const axis = new THREE.Vector3(0, 0.62, 0.78).normalize()
     CAT.forEach((c, i) => {
-      S.CI = i; S.WMM = c.ws[c.dw || 0]; S.WALL = c.wall; S.METAL = c.metal; S.PAVE = c.id === 'IC' ? 'semi' : 'none'; S.GW = 0; if (c.gem) S.GEM = c.gem; rebuild()
+      S.CI = i; S.WMM = c.defaultWidth; S.WALL = c.wall; S.METAL = c.metal; S.PAVE = c.id === 'IC' ? 'semi' : 'none'; S.GW = 0; if (c.gem) S.GEM = c.gem; rebuild()
       const Rin = 0.58, pxmm = Rin / (S.FD / 2), pos = new THREE.Vector3(0, c.id === 'SOL' || c.id === 'ND' ? -0.25 : -0.05, 0), { qR, qH } = frameFor(axis, new THREE.Vector3(0, 0.78, -0.62), 0)
       setRing(S.ring, qR, pos, Rin, S.WMM * pxmm, axis, 0, paveCfg())
       const head = S.head
@@ -201,7 +218,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let lastTw = 0, raf = 0
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle)
-    if (!document.hidden && dragX === null && now > resumeAt && now - lastPlay > 100) {
+    if (AUTO && !document.hidden && dragX === null && now > resumeAt && now - lastPlay > 100) {
       lastPlay = now; let n = cur + playDir
       if (n < PMIN || n > PMAX) { playDir = -playDir; n = Math.max(PMIN, Math.min(PMAX, cur + playDir)) }
       show(n)
@@ -225,6 +242,11 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   raf = requestAnimationFrame(twinkle)
   return {
     thumbs,
+    // 확인용(?pave=full&w=7&frame=41): 반지 옵션을 바꾸고 재생을 멈춰 특정 프레임에 고정
+    debug(o: Record<string, any>, frame?: number) { Object.assign(S, o); rebuild(); if (frame != null) { resumeAt = Infinity; show(frame) } else show() },
+    // 상세 설정: 현재 고른 옵션 읽기 / 바꾸기 (바꾸면 반지를 다시 만들어 그림)
+    state() { const { CI, WMM, WALL, METAL, PAVE, GW, GPAVE, GMETAL, RMETAL, CUT, CT, GEM, PRONG } = S; return { CI, WMM, WALL, METAL, PAVE, GW, GPAVE, GMETAL, RMETAL, CUT, CT, GEM, PRONG } },
+    set(patch: Record<string, any>) { Object.assign(S, patch); rebuild(); show() },
     setHand(h: HandData) { setHand(h); show(PMAX) },
     dragStart(x: number, y: number) { dragX = x; dragY = y; drag0 = cur },
     dragMove(x: number, y: number, w: number) {
@@ -234,6 +256,10 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     },
     dragEnd() { dragX = null; resumeAt = performance.now() + 1500 },
     pick(id: string) { const i = CAT.findIndex(c => c.id === id); if (i >= 0) pickRing(i) },
-    stop() { cancelAnimationFrame(raf); dispose(S.ring); dispose(S.ring2); if (S.head) { S.scene.remove(S.head); S.head = null }; S.ring = S.ring2 = null },
+    // 위쪽 버튼: 재생/멈춤, 가까이, 내 호수(안쪽 둘레 40+호수 mm 로 손가락 굵기를 다시 잡음)
+    setPlaying(on: boolean) { AUTO = on; resumeAt = 0 },
+    setZoom(on: boolean) { zoom = on; renderer.setPixelRatio(on ? 3 : Math.min(2, window.devicePixelRatio || 1)); renderer.setSize(IW, IH, false); show() },
+    setHo(ho: number) { S.HO = ho; S.FD = (40 + ho) / Math.PI; rebuild(); show() },
+    stop() { removeEventListener('resize', applyZoom); cancelAnimationFrame(raf); dispose(S.ring); dispose(S.ring2); if (S.head) { S.scene.remove(S.head); S.head = null }; S.ring = S.ring2 = null },
   }
 }

@@ -1,4 +1,4 @@
-// @ts-nocheck  (reference/main13.js 의 밴드·무늬·makeRing 을 모양·수치 그대로 옮김)
+// @ts-nocheck  (reference/main13.js 의 밴드·무늬·파베 알·makeRing 을 모양·수치 그대로 옮김)
 import * as THREE from 'three'
 import { S, M, H, METALS, TAU, wrap, clip } from './shared.ts'
 import { gemEnv } from './sol.ts'
@@ -15,9 +15,13 @@ function band(y0,h,tR,pattern,mat,rows=24,pe=0.55){
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
   return new THREE.Mesh(g,mat);}
 // 파베 알: 보석 전용 반사로 반짝이게
-export const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.45,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.0,clippingPlanes:[clip]});
+export const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.5,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.4,clippingPlanes:[clip]});
 // 파베 알 한 개: 브릴리언트처럼 테이블·크라운·파빌리온이 있는 깎인 모양
-const stoneGeo=new THREE.LatheGeometry([new THREE.Vector2(0.001,-0.7),new THREE.Vector2(1,0),new THREE.Vector2(1,0.05),new THREE.Vector2(0.58,0.3),new THREE.Vector2(0.001,0.3)],8);
+const stoneGeo=(()=>{const g0=new THREE.LatheGeometry([new THREE.Vector2(0.001,-0.75),new THREE.Vector2(1,0),new THREE.Vector2(1,0.06),new THREE.Vector2(0.84,0.2),new THREE.Vector2(0.48,0.34),new THREE.Vector2(0.001,0.34)],12).toNonIndexed();
+  // 면마다 밝고 어두움을 번갈아 칠해 다이아의 화살 무늬처럼 빛이 갈라지게 (흰 원판처럼 보이지 않게)
+  const pos=g0.attributes.position, col=[]; for(let t=0;t<pos.count;t+=3){const y=(pos.getY(t)+pos.getY(t+1)+pos.getY(t+2))/3, a=Math.atan2(pos.getZ(t)+pos.getZ(t+1)+pos.getZ(t+2),pos.getX(t)+pos.getX(t+1)+pos.getX(t+2)), k=Math.floor((a+Math.PI)/(Math.PI/6))%2;
+    const c=y>0.3?0.62:y>0.1?(k?1.0:0.3):y>0?(k?0.45:0.85):(k?0.22:0.55); for(let n=0;n<3;n++)col.push(c,c,c);}
+  g0.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g0.computeVertexNormals(); return g0;})();
 const beadGeo=new THREE.SphereGeometry(1,8,6);   // 알을 잡는 작은 금속 발
 const caps=(g,t,k,mat)=>{[-H/2,H/2].forEach(y=>{const r=new THREE.RingGeometry(1.0,1+t*k,128);r.rotateX(Math.PI/2);const c=new THREE.Mesh(r,mat);c.position.y=y;g.add(c);});
   g.add(new THREE.Mesh(new THREE.CylinderGeometry(1,1,H,128,1,true),mat));};
@@ -37,6 +41,12 @@ export function makeRing(style,wall,metal,W){
   const mat=M(METALS[metal]||METALS.YG,1,0.16); mat.envMapIntensity=1.6;
   const one=(pat,rows=24,p=0.55,k=0.33)=>{tR=t*(style==='S'||style==='SOL'?1.1:1);pe=p;g.add(band(-H/2,H,tR,pat,mat,rows,p));caps(g,t,k,mat);};
   if(style==='S'||style==='SOL'){ one(()=>0); }
+  else if(style==='MG'){           // 밀그레인: 민짜 밴드 + 위아래 끝에 아주 작은 구슬 테두리(색 따로)
+    const rh=H*Math.min(0.55/W,0.2), tt=t*1.1, rm=M(METALS[S.RMETAL==='same'?metal:S.RMETAL]||METALS.WG,1,0.18); rm.envMapIntensity=1.6;
+    g.add(band(-H/2+rh,H-2*rh,tt,()=>0,mat,24,0.5));
+    const n=Math.round(TAU*R*1.1/0.5), bp=(th,v)=>{const u=th/TAU*n, fu=u-Math.floor(u)-0.5; return 0.03*(Math.sqrt(Math.max(0,1-4*fu*fu))-0.7);}; bp.seg=n*8;
+    g.add(band(-H/2,rh,tt*0.92,bp,rm,8,0.6)); g.add(band(H/2-rh,rh,tt*0.92,bp,rm,8,0.6));
+    tR=tt; pe=0.5; caps(g,t,0.33,rm); }
   else if(style==='Q'){            // 콰트레: 질감 다른 띠 2줄(4mm) 또는 4줄(7mm)
     const parts=[[0xf0c36e,1,0.16,(th,v)=>0.05*Math.pow(Math.abs(Math.sin(th*36+v*5.5)),0.6)],[0x3b2a22,0.6,0.32,()=>0],
      [0xf0b49c,1,0.22,th=>0.03*(Math.sin(th*160)>0?1:0)],[0xeef0f3,1,0.12,(th,v)=>0.035*Math.abs(Math.sin(th*40+v*3))*Math.abs(Math.sin(th*40-v*3))]];
@@ -46,10 +56,12 @@ export function makeRing(style,wall,metal,W){
     for(let k=1;k<nb;k++){const gg=new THREE.Mesh(new THREE.CylinderGeometry(1+t*0.55,1+t*0.55,0.03,128,1,true),grooveM);gg.position.y=-H/2+k*H/nb;g.add(gg);}
     caps(g,t,0.32,M(0xd9b46a,1,0.3));
   } else if(style==='B'){          // 비제로투: 나선 테두리 두 줄 + 매끈한 가운데
-    const E=0.24*H; tR=t*1.05;
+    // 미니(폭 < 6mm) = 가운데 통통한 띠 1줄, 라지 = 2줄. 테두리 폭은 mm로 같게
+    const nb=W<6?1:2, E=H*Math.min(0.24,1.15/W); tR=t*1.05; g.userData.bz={nb,E:E/H};
     g.add(band(-H/2,E,t*1.5,(th,v)=>0.11*Math.pow(Math.abs(Math.sin(th*55+v*Math.PI*1.2)),0.35),mat));
     g.add(band(H/2-E,E,t*1.5,(th,v)=>0.11*Math.pow(Math.abs(Math.sin(th*55-v*Math.PI*1.2)),0.35),mat));
-    g.add(band(-H/2+E,H-2*E,tR,()=>0,mat)); caps(g,t,0.32,mat);
+    const ch=(H-2*E)/nb; for(let k=0;k<nb;k++) g.add(band(-H/2+E+k*ch+(nb>1?0.006:0),ch-(nb>1?0.012:0),tR,()=>0,mat));
+    caps(g,t,0.32,mat);
   } else if(style==='L'){          // 러브볼트: 납작한 밴드 + 나사 6개(대각 홈)
     const rs=0.3*W, ns=6;
     one((th,v)=>{const c=Math.round(wrap(th)/TAU*ns-0.0)%ns, dth=wrap(th-c/ns*TAU+Math.PI)-Math.PI, x=dth*R, y=(v-0.5)*W, d=Math.hypot(x,y);

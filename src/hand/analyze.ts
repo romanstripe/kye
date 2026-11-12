@@ -8,6 +8,7 @@ import type { HandData } from '../three/stage.ts'
 export const FRAME_COUNT = 40
 const IW = 480
 const IH = 854
+const SS = 2 // 사진은 2배 크기(960×1708)로 저장해서 선명하게. 좌표는 0~1 비율이라 그대로 IW×IH 기준
 const MIN_FOUND = 8 // 손이 이만큼도 안 잡히면 실패로 보고 예시 손으로
 
 export const WASM = { wasmLoaderPath: wasmLoader, wasmBinaryPath: wasmBinary }
@@ -126,18 +127,19 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     if (!vw || !vh || !isFinite(duration) || duration <= 0) throw new Error('영상을 읽지 못했어요')
 
     const c = document.createElement('canvas')
-    c.width = IW
-    c.height = IH
+    c.width = IW * SS
+    c.height = IH * SS
     const ctx = c.getContext('2d')!
-    const k = Math.max(IW / vw, IH / vh) // 화면을 꽉 채우도록 가운데를 잘라 맞춤
+    ctx.imageSmoothingQuality = 'high'
+    const k = Math.max((IW * SS) / vw, (IH * SS) / vh) // 화면을 꽉 채우도록 가운데를 잘라 맞춤
     const dw = vw * k, dh = vh * k
 
     onProgress(0, FRAME_COUNT, '첫 프레임 분석 중')
     const found: (number[][] | null)[] = []
     for (let i = 0; i < FRAME_COUNT; i++) {
       await seek(v, Math.min(duration - 0.05, (i / (FRAME_COUNT - 1)) * duration))
-      ctx.drawImage(v, (IW - dw) / 2, (IH - dh) / 2, dw, dh)
-      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.85))
+      ctx.drawImage(v, (IW * SS - dw) / 2, (IH * SS - dh) / 2, dw, dh)
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.92))
       if (!blob) throw new Error('프레임을 만들지 못했어요')
       frames.push(URL.createObjectURL(blob))
       const l = lm.detect(c).landmarks[0]

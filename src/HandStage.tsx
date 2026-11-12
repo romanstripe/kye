@@ -5,6 +5,7 @@ import { analyzeVideo, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
 import HoPicker from './HoPicker.tsx'
 import FingerHints from './FingerHints.tsx'
 import type { Hint } from './FingerHints.tsx'
+import { CameraIcon } from './Landing.tsx'
 import WornPanel from './WornPanel.tsx'
 import type { Slot } from './WornPanel.tsx'
 
@@ -22,20 +23,20 @@ const IH = 854
 
 // 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 데이터는 public/rings.json, public/demo/hand.json
 // 내 영상을 올리면 그 손으로, 실패하거나 안 올리면 예시 손으로 보여줌
-export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void }) {
+export default function HandStage({ onReady, onActiveRing, initialFile, onLanding }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile?: File; onLanding: () => void }) {
+  const pending = useRef(initialFile)
+  const run = useRef<(f?: File) => void>(() => {})
   const img = useRef<HTMLImageElement>(null)
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
   const dbg = useRef<HTMLCanvasElement>(null)
   const [debug, setDebug] = useState(false)
   const [info, setInfo] = useState('')
-  const file = useRef<HTMLInputElement>(null)
   const stageRef = useRef<ReturnType<typeof createStage> | null>(null)
   const demo = useRef<HandData | null>(null)
   const mine = useRef<HandData | null>(null)
   const [busy, setBusy] = useState<number | null>(null) // 처리한 프레임 수
   const [stage, setStage] = useState('')
-  const [custom, setCustom] = useState(false)
   const [msg, setMsg] = useState('')
   const [playing, setPlaying] = useState(true)
   const [zoom, setZoom] = useState(false)
@@ -75,6 +76,7 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
         hand,
       )
       ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: rings[0].id })
+      if (pending.current) { const f = pending.current; pending.current = undefined; run.current(f) }
     })
     return () => {
       dead = true
@@ -93,13 +95,6 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setOpen])
 
-  const useDemo = () => {
-    if (demo.current) stageRef.current?.setHand(demo.current)
-    if (mine.current) revokeHand(mine.current)
-    mine.current = null
-    setCustom(false)
-  }
-
   const onFile = async (f: File | undefined) => {
     if (!f || !stageRef.current) return
     setMsg('')
@@ -110,15 +105,16 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
       mine.current = hand
       stageRef.current?.setHand(hand)
       if (old) revokeHand(old)
-      setCustom(true)
     } catch (e) {
-      // 손을 못 찾거나 영상이 이상하면 예시 손 그대로
-      setMsg(`${e instanceof Error ? e.message : '분석에 실패했어요'}. 예시 손으로 보여드릴게요`)
-      setTimeout(() => setMsg(''), 4000)
+      // 손을 못 찾거나 영상이 이상하면 안내만 하고 화면은 그대로
+      setMsg(`${e instanceof Error ? e.message : '분석에 실패했어요'}. 카메라 버튼으로 다시 찍어 주세요`)
+      setTimeout(() => setMsg(''), 6000)
     } finally {
       setBusy(null)
     }
   }
+
+  run.current = onFile
 
   return (
     <>
@@ -195,12 +191,13 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
         >
           디버그
         </button>
-        <button className="chip" disabled={busy !== null} onClick={() => file.current?.click()}>
-          {busy === null ? '내 손으로 해보기' : busy === 0 && stage ? stage : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
-        </button>
-        {custom && busy === null && (
-          <button className="chip" onClick={useDemo}>
-            예시 손
+        {busy === null ? (
+          <button className="chip icon" aria-label="내 손 다시 찍기" onClick={onLanding}>
+            <CameraIcon size={18} />
+          </button>
+        ) : (
+          <button className="chip" disabled>
+            {busy === 0 && stage ? stage : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
           </button>
         )}
         <button
@@ -216,16 +213,6 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
         </button>
         {msg && <span className="note">{msg}</span>}
         {info && <span className="note">{info}</span>}
-        <input
-          ref={file}
-          type="file"
-          accept="video/*"
-          hidden
-          onChange={(e) => {
-            onFile(e.target.files?.[0])
-            e.target.value = ''
-          }}
-        />
       </div>
     </>
   )

@@ -41,7 +41,6 @@ export default function App() {
       <div className="stage">
         <HandStage
           initialFile={file}
-          onLanding={() => setScreen('landing')}
           onActiveRing={setSel}
           onReady={(m) => {
             setMenu(m)

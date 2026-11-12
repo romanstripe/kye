@@ -23,7 +23,9 @@ const IH = 854
 
 // 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 데이터는 public/rings.json, public/demo/hand.json
 // 내 영상을 올리면 그 손으로, 실패하거나 안 올리면 예시 손으로 보여줌
-export default function HandStage({ onReady, onActiveRing, initialFile, onLanding }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile?: File; onLanding: () => void }) {
+export default function HandStage({ onReady, onActiveRing, initialFile }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile?: File }) {
+  const file = useRef<HTMLInputElement>(null)
+  const album = useRef<HTMLInputElement>(null)
   const pending = useRef(initialFile)
   const run = useRef<(f?: File) => void>(() => {})
   const img = useRef<HTMLImageElement>(null)
@@ -192,9 +194,14 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onLandin
           디버그
         </button>
         {busy === null ? (
-          <button className="chip icon" aria-label="내 손 다시 찍기" onClick={onLanding}>
-            <CameraIcon size={18} />
-          </button>
+          <>
+            <button className="chip icon" aria-label="내 손 다시 찍기" onClick={() => file.current?.click()}>
+              <CameraIcon size={18} />
+            </button>
+            <button className="chip" onClick={() => album.current?.click()}>
+              앨범
+            </button>
+          </>
         ) : (
           <button className="chip" disabled>
             {busy === 0 && stage ? stage : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
@@ -213,6 +220,27 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onLandin
         </button>
         {msg && <span className="note">{msg}</span>}
         {info && <span className="note">{info}</span>}
+        <input
+          ref={album}
+          type="file"
+          accept="video/*"
+          hidden
+          onChange={(e) => {
+            onFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
+        <input
+          ref={file}
+          type="file"
+          accept="video/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            onFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
       </div>
     </>
   )

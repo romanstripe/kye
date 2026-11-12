@@ -47,7 +47,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     N = h.N; P = h.P; LMS = h.LMS; SM = smoothLandmarks(LMS); frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
     // 내가 올린 영상은 예시 손에 맞춰 잡은 보정(손등 기울기, 옆 이동, 옆 조임)을 끔
     T = h.custom ? MINE : DEMO; fixed = null
-    frames.forEach(u => { new Image().src = u })   // 미리 받아두기
+    if (!h.custom) frames.forEach(u => { new Image().src = u })   // 미리 받아두기 (내 영상은 사진이 커서 메모리 때문에 생략)
     cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
     masks.clear(); meas.clear(); fingerMemo = null; inflight.clear(); warmId++; warm(); report()   // 손 영상을 불러오면 재생 구간의 다섯 손가락 폭을 미리 재 둠 (끝나면 다시 재지 않음)
   }

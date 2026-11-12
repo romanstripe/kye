@@ -106,7 +106,8 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     v.preload = 'auto'
     v.src = src
     // 사파리는 화면에 붙이지 않은 영상을 안 읽는 경우가 있어 숨겨서 붙임
-    v.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none'
+    // 1px로 두면 사파리가 화질을 낮춰 디코딩할 수 있어, 실제 크기로 두되 뒤에 숨김
+    v.style.cssText = 'position:fixed;left:0;top:0;width:480px;height:854px;opacity:0.01;z-index:-1;pointer-events:none'
     document.body.appendChild(v)
     cleanup = () => v.remove()
     onProgress(0, FRAME_COUNT, '영상 읽는 중')
@@ -130,11 +131,16 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     c.width = IW * SS
     c.height = IH * SS
     const ctx = c.getContext('2d')!
+    // 손 찾기는 작은 캔버스로 (큰 사진을 매번 넘기면 폰에서 메모리가 많이 듦)
+    const dc = document.createElement('canvas')
+    dc.width = IW
+    dc.height = IH
+    const dctx = dc.getContext('2d')!
     ctx.imageSmoothingQuality = 'high'
     const k = Math.max((IW * SS) / vw, (IH * SS) / vh) // 화면을 꽉 채우도록 가운데를 잘라 맞춤
     const dw = vw * k, dh = vh * k
 
-    onProgress(0, FRAME_COUNT, '첫 프레임 분석 중')
+    onProgress(0, FRAME_COUNT, `첫 프레임 분석 중 (영상 ${vw}×${vh})`)
     const found: (number[][] | null)[] = []
     for (let i = 0; i < FRAME_COUNT; i++) {
       await seek(v, Math.min(duration - 0.05, (i / (FRAME_COUNT - 1)) * duration))
@@ -142,12 +148,14 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
       const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.92))
       if (!blob) throw new Error('프레임을 만들지 못했어요')
       frames.push(URL.createObjectURL(blob))
-      const l = lm.detect(c).landmarks[0]
+      dctx.drawImage(c, 0, 0, IW, IH)
+      const l = lm.detect(dc).landmarks[0]
       found.push(l ? l.map((p) => [p.x * IW, p.y * IH, p.z * IW]) : null)
       onProgress(i + 1, FRAME_COUNT)
       await new Promise((r) => setTimeout(r)) // 진행 표시가 갱신되게 한 번 쉼
     }
 
+    c.width = c.height = dc.width = dc.height = 0   // 캔버스 메모리 바로 반납
     return buildHand(frames, found)
   } catch (e) {
     frames.forEach((u) => URL.revokeObjectURL(u))

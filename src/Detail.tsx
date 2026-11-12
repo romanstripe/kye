@@ -119,7 +119,7 @@ export default function Detail({ ring: c, menu, onBack }: { ring: RingInfo; menu
           </Group>
         )}
         <Group label="가드링 (얇은 링 하나 더)">
-          <Chips opts={[[0, '없음'], [0.5, '0.5'], [1, '1.0'], [1.5, '1.5'], [2, '2.0'], [2.5, '2.5mm']]} cur={s.GW} onPick={(v) => set({ GW: v })} />
+          <Chips opts={[[0, '없음'], [1, '1.0'], [1.5, '1.5'], [2, '2.0'], [2.5, '2.5mm']]} cur={s.GW} onPick={(v) => set({ GW: v })} />
           {s.GW > 0 && (
             <>
               <Chips opts={[[false, '매끈하게'], [true, '가드링 파베']]} cur={s.GPAVE} onPick={(v) => set({ GPAVE: v })} />

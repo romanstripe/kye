@@ -23,6 +23,9 @@ function getLandmarker() {
         runningMode: 'IMAGE',
         numHands: 1,
       })
+    // 사파리(아이폰 포함)는 GPU 모드에서 손이 안 잡히는 일이 있어 처음부터 CPU로
+    const safari = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) || /iP(hone|ad|od)/.test(navigator.userAgent)
+    if (safari) return await make('CPU')
     try {
       return await make('GPU')
     } catch {
@@ -32,6 +35,12 @@ function getLandmarker() {
   landmarker.catch(() => (landmarker = null))
   return landmarker
 }
+
+const timeout = <T,>(p: Promise<T>, ms: number, msg: string) =>
+  new Promise<T>((res, rej) => {
+    const t = setTimeout(() => rej(new Error(msg)), ms)
+    p.then((v) => (clearTimeout(t), res(v)), (e) => (clearTimeout(t), rej(e)))
+  })
 
 const once = (el: HTMLVideoElement, ok: string) =>
   new Promise<void>((resolve, reject) => {
@@ -49,7 +58,7 @@ async function seek(v: HTMLVideoElement, t: number) {
   if (Math.abs(v.currentTime - t) < 1e-3) return
   const p = once(v, 'seeked')
   v.currentTime = t
-  await p
+  await timeout(p, 5000, '영상 프레임을 못 가져왔어요')
 }
 
 // 13(약지 첫째 마디 시작)·14(둘째 마디 시작) → 반지 자리 [cx,cy,cz, 방향 dx,dy,dz, 손가락 반지름]
@@ -92,16 +101,26 @@ function buildHand(frames: string[], found: (number[][] | null)[]): HandData {
 }
 
 export async function analyzeVideo(file: File, onProgress: (done: number, total: number) => void): Promise<HandData> {
-  const lm = await getLandmarker()
+  const lm = await timeout(getLandmarker(), 40000, '손 인식 모델을 불러오지 못했어요')
   const src = URL.createObjectURL(file)
   const frames: string[] = []
+  let cleanup = () => {}
   try {
     const v = document.createElement('video')
     v.muted = true
     v.playsInline = true
     v.preload = 'auto'
     v.src = src
-    await once(v, 'loadeddata')
+    // 사파리는 화면에 붙이지 않은 영상을 안 읽는 경우가 있어 숨겨서 붙임
+    v.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none'
+    document.body.appendChild(v)
+    cleanup = () => v.remove()
+    const loaded = once(v, 'loadeddata')
+    v.load()
+    // 아이폰 사파리는 재생을 시작해야 첫 화면을 읽어 주는 일이 있어 잠깐 재생
+    v.play().then(() => v.pause()).catch(() => {})
+    await timeout(loaded, 15000, '영상을 읽지 못했어요 (사파리)')
+    v.pause()
     if (v.duration === Infinity) {
       // 길이 정보가 없는 영상(웹캠 녹화 webm 등): 끝으로 한 번 보내서 길이를 알아냄
       const d = once(v, 'durationchange')
@@ -137,6 +156,7 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     frames.forEach((u) => URL.revokeObjectURL(u))
     throw e
   } finally {
+    cleanup()
     URL.revokeObjectURL(src)
   }
 }

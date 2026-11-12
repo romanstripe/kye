@@ -23,3 +23,5 @@ reference_v60
 *.njsproj
 *.sln
 *.sw?
+
+*.ait

@@ -4,7 +4,7 @@
   "rings": [
     {
       "id": "B",
-      "name": "비제로투",
+      "name": "스프링",
       "sub": "나선 테두리",
       "widths": [4.8, 7.5],
       "widthLabels": {
@@ -68,7 +68,7 @@
     },
     {
       "id": "Q",
-      "name": "콰트레",
+      "name": "콰트로",
       "sub": "네 가지 질감",
       "widths": [4, 7],
       "widthLabels": {
@@ -215,7 +215,7 @@
     },
     {
       "id": "SP",
-      "name": "세르펜토",
+      "name": "세르펜",
       "sub": "맞물린 사다리꼴 비늘",
       "widths": [4],
       "widthLabels": null,
@@ -252,7 +252,7 @@
     },
     {
       "id": "I",
-      "name": "아이스블록",
+      "name": "아이스",
       "sub": "작은 큐브 격자",
       "widths": [3.5],
       "widthLabels": null,
@@ -289,7 +289,7 @@
     },
     {
       "id": "BB",
-      "name": "베르베로",
+      "name": "베르나르",
       "sub": "네 줄이 하나로",
       "widths": [5],
       "widthLabels": null,
@@ -383,7 +383,7 @@
     },
     {
       "id": "PE",
-      "name": "뻬를라",
+      "name": "파이어",
       "sub": "동글동글 구슬",
       "widths": [2.5, 3.5],
       "widthLabels": null,
@@ -439,7 +439,7 @@
     },
     {
       "id": "CC",
-      "name": "코코퀼트",
+      "name": "퀼트",
       "sub": "퀼팅 마름모",
       "widths": [3, 5.5],
       "widthLabels": {
@@ -508,7 +508,7 @@
 
     {
       "id": "MV",
-      "name": "무빙원",
+      "name": "무빙",
       "sub": "타원 틀 안에서 움직이는 알",
       "widths": [4.6, 5.8],
       "widthLabels": {
@@ -559,7 +559,7 @@
     },
     {
       "id": "ND",
-      "name": "누디",
+      "name": "젤리",
       "sub": "동글게 깎은 큰 컬러 알",
       "widths": [3, 4],
       "widthLabels": {

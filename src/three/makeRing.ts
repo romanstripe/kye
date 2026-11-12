@@ -32,8 +32,22 @@ export function spAt(sc,th,v){const u=wrap(th)/TAU*sc.n; let k=Math.floor(u); if
   const a=spB(sc,k,v), b=spB(sc,k+1,v); return {k:((k%sc.n)+sc.n)%sc.n, dmm:Math.min(u-a,b-u)*sc.p, cu:(u-(a+b)/2)/((b-a)/2), a, b};}
 // 무빙원 치수(mm): 기본 타원 10.3×4.6, 파베형 12×4.5 (메시카 상품 정보 기준). a,b = 타원 선 중심의 반지름
 export function mvDims(){const pv=S.PAVE!=='none', big=S.WMM>5;
-  if(big){const r=pv?0.65:0.6; return {a:13.9/2-r,b:5.8/2-r,r,rb:0.8,D:2.6};}   // 라지: 13.9×5.8, 0.06ct ≈ 2.6mm (파베 라지는 치수 미공개 → 같은 크기로)
-  const r=pv?0.5:0.45, L=pv?12:10.3, Wd=pv?4.5:4.6; return {a:L/2-r,b:Wd/2-r,r,rb:0.6,D:pv?2.2:1.4};}   // 스몰: 10.3×4.6, 0.01ct ≈ 1.4mm / 파베 스몰 12×4.5
+  // L×Wd = 바깥 크기(mm). 선 굵기 r을 키워 양감을 주고, rc = 모서리 둥글기(선 중심 기준 반지름)
+  if(big){const r=pv?1.05:1.0, L=17, Wd=6.4, b=Wd/2-r; return {a:L/2-r,b,r,rb:1.2,D:2.6,rc:b*0.8};}
+  const r=pv?0.9:0.85, L=pv?14.5:13, Wd=pv?5.2:5.0, b=Wd/2-r; return {a:L/2-r,b,r,rb:1.0,D:pv?2.2:1.4,rc:b*0.8};}
+// 무빙 틀 윤곽: 모서리가 큰 둥근 직사각형. f=0..2π(호 길이에 비례) → [x,y] (mm, 선 중심)
+export function mvPt(mv,f){const A=mv.a, B=mv.b, rc=Math.min(mv.rc,A,B), q=Math.PI/2*rc;
+  const segs=[[B-rc,'l'],[q,'c'],[2*(A-rc),'l'],[q,'c'],[2*(B-rc),'l'],[q,'c'],[2*(A-rc),'l'],[q,'c'],[B-rc,'l']];
+  const tot=segs.reduce((x,s)=>x+s[0],0); let u=(f/TAU%1+1)%1*tot;
+  const dirs=[[0,1],[-1,0],[0,-1],[1,0]]; let x=A, y=0, d=0;
+  for(const [len,k] of segs){ const dd=dirs[d%4];
+    if(k==='l'){ if(u<=len) return [x+dd[0]*u, y+dd[1]*u]; x+=dd[0]*len; y+=dd[1]*len; u-=len; }
+    else { const nd=dirs[(d+1)%4], cx=x+nd[0]*rc, cy=y+nd[1]*rc, a0=Math.atan2(y-cy,x-cx), a=a0+Math.min(u,len)/rc;
+      if(u<=len) return [cx+rc*Math.cos(a), cy+rc*Math.sin(a)]; x=cx+rc*Math.cos(a0+Math.PI/2); y=cy+rc*Math.sin(a0+Math.PI/2); u-=len; d++; } }
+  return [A,0];}
+// 윤곽을 호 길이 기준으로 고르게 나눈 f 값 n개
+export function mvEven(mv,n){const M=800, cum=[0]; let p=mvPt(mv,0); for(let i=1;i<=M;i++){const q=mvPt(mv,i/M*TAU); cum.push(cum[i-1]+Math.hypot(q[0]-p[0],q[1]-p[1])); p=q;}
+  const tot=cum[M], out=[]; let j=0; for(let k=0;k<n;k++){const d=k/n*tot; while(cum[j+1]<d)j++; out.push((j+(d-cum[j])/(cum[j+1]-cum[j]))/M*TAU);} return {f:out,per:tot};}   // 스몰: 10.3×4.6, 0.01ct ≈ 1.4mm / 파베 스몰 12×4.5
 // ---- 반지 만들기. 모두 비슷하지만 똑같지 않은 자체 디자인
 export function makeRing(style,wall,metal,W){
   const t=wall/(S.FD/2), R=S.FD/2, g=new THREE.Group(); let tR=t, pe=0.55;
@@ -92,12 +106,12 @@ export function makeRing(style,wall,metal,W){
       return i%2? 0.13*Math.max(0,1-2.6*Math.max(Math.abs(fu),Math.abs(fv)))-0.02 : 0.11*Math.sqrt(Math.max(0,1-6*(fu*fu+fv*fv)))-0.02;},72,0.25,0.3);
   } else if(style==='SPR'){        // 스피랄레: 가는 선 세 가닥이 손가락을 감아 도는 소용돌이
     one((th,v)=>0.07*Math.pow(Math.abs(Math.sin(th*HK+v*Math.PI*1.5)),0.5)-0.045,72,0.35,0.28);
-  } else if(style==='MV'){         // 무빙원: 손등 쪽에 완전히 닫힌 타원 틀(가로 10.3 × 세로 4.6mm, 파베형 12 × 4.5) + 뒤는 가는 한 줄. 알이 타원 안에서 움직임
+  } else if(style==='MV'){         // 무빙: 손등 쪽에 완전히 닫힌 둥근 직사각형 틀(가로 10.3 × 세로 4.6mm, 파베형 12 × 4.5) + 뒤는 가는 한 줄. 알이 타원 안에서 움직임
     const mv=mvDims(), rmm=mv.r, Rr=R+rmm; tR=2*rmm/R; pe=1; g.userData.mv=mv;
     const toL=new THREE.Matrix4().makeScale(1/R,H/W,1/R);
-    const ell=new THREE.Curve(); ell.getPoint=(t,o=new THREE.Vector3())=>{const f=t*TAU, sa=mv.a*Math.cos(f), th=Math.PI/2+sa/Rr; return o.set(Math.cos(th)*Rr,mv.b*Math.sin(f),Math.sin(th)*Rr);};
+    const ell=new THREE.Curve(); ell.getPoint=(t,o=new THREE.Vector3())=>{const [px,py]=mvPt(mv,t*TAU), th=Math.PI/2+px/Rr; return o.set(Math.cos(th)*Rr,py,Math.sin(th)*Rr);};
     const back=new THREE.Curve(); const t0=Math.PI/2+mv.a/Rr, t1=Math.PI/2-mv.a/Rr+TAU; back.getPoint=(t,o=new THREE.Vector3())=>{const th=t0+(t1-t0)*t; return o.set(Math.cos(th)*Rr,0,Math.sin(th)*Rr);};
-    [[ell,160,true,rmm],[back,200,false,mv.rb]].forEach(([c,n,cl,r])=>{const geo=new THREE.TubeGeometry(c,n,r,12,cl); geo.applyMatrix4(toL); g.add(new THREE.Mesh(geo,mat));});
+    [[ell,400,true,rmm],[back,200,false,mv.rb]].forEach(([c,n,cl,r])=>{const geo=new THREE.TubeGeometry(c,n,r,12,cl); geo.applyMatrix4(toL); g.add(new THREE.Mesh(geo,mat));});
   } else if(style==='ND'){         // 누디: 통통한 밴드 위에 큰 컬러 알
     one(()=>0,24,0.8,0.33);
   } else if(style==='IC'){         // 아이콘볼: 볼록한 돔 밴드 + 여러 색 알

@@ -5,17 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build && ait build",
+    "preview": "vite preview",
+    "deploy": "ait deploy"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "@apps-in-toss/devtools": "^3.10.0"
   },
   "dependencies": {
+    "@apps-in-toss/web-framework": "^3.10.0",
     "@mediapipe/tasks-vision": "^1.2.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

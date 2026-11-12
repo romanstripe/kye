@@ -25,6 +25,9 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
   const tint = useRef<HTMLDivElement>(null)
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
+  const dbg = useRef<HTMLCanvasElement>(null)
+  const [debug, setDebug] = useState(false)
+  const [info, setInfo] = useState('')
   const file = useRef<HTMLInputElement>(null)
   const stageRef = useRef<ReturnType<typeof createStage> | null>(null)
   const demo = useRef<HandData | null>(null)
@@ -60,7 +63,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
       }
       demo.current = hand
       stage = stageRef.current = createStage(
-        { img: img.current!, tint: tint.current!, shadow: shadow.current!, out: out.current! },
+        { img: img.current!, tint: tint.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo },
         rings,
         hand,
       )
@@ -137,6 +140,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
           <div ref={tint} className="tint" />
           <canvas ref={shadow} />
           <canvas ref={out} />
+          <canvas ref={dbg} width={IW * 2} height={IH * 2} />
         </div>
       </div>
       <div className="tools">
@@ -196,6 +200,16 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
         >
           가까이
         </button>
+        <button
+          className="chip"
+          aria-pressed={debug}
+          onClick={() => {
+            stageRef.current?.setDebug(!debug)
+            setDebug(!debug)
+          }}
+        >
+          디버그
+        </button>
         <button className="chip" disabled={busy !== null} onClick={() => file.current?.click()}>
           {busy === null ? '내 손으로 해보기' : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
         </button>
@@ -205,6 +219,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
           </button>
         )}
         {msg && <span className="note">{msg}</span>}
+        {info && <span className="note">{info}</span>}
         <input
           ref={file}
           type="file"

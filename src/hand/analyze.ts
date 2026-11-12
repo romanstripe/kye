@@ -10,11 +10,13 @@ const IW = 480
 const IH = 854
 const MIN_FOUND = 8 // 손이 이만큼도 안 잡히면 실패로 보고 예시 손으로
 
+export const WASM = { wasmLoaderPath: wasmLoader, wasmBinaryPath: wasmBinary }
+
 let landmarker: Promise<HandLandmarker> | null = null
 export function getLandmarker() {
   landmarker ??= (async () => {
     const { HandLandmarker } = await import('@mediapipe/tasks-vision')
-    const wasm = { wasmLoaderPath: wasmLoader, wasmBinaryPath: wasmBinary }
+    const wasm = WASM
     const make = (delegate: 'GPU' | 'CPU') =>
       HandLandmarker.createFromOptions(wasm, {
         baseOptions: { modelAssetPath: '/mediapipe/hand_landmarker.task', delegate },
@@ -86,7 +88,7 @@ export function buildHand(frames: string[], found: (number[][] | null)[]): HandD
   for (let i = pmin; i <= pmax; i++) LMS[i] = found[i] ?? LMS[i - 1]
   const P: (number[] | null)[] = new Array(found.length).fill(null)
   smooth(LMS.slice(pmin).map(ringPose)).forEach((p, j) => (P[pmin + j] = p.map((x) => Math.round(x * 1000) / 1000)))
-  return { N: found.length, P, LMS, frames, pmin, pmax }
+  return { N: found.length, P, LMS, frames, pmin, pmax, custom: true }
 }
 
 export async function analyzeVideo(file: File, onProgress: (done: number, total: number) => void): Promise<HandData> {

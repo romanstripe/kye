@@ -4,6 +4,8 @@ import { S, M, H, TAU, IW, IH, LI, cv, renderer, mainScene, cam, pmg, clip } fro
 import { GEMS, NUDO_GEMS, makeHead } from './sol.ts'
 import { makeRing, TW } from './makeRing.ts'
 import { layoutStones } from './layoutStones.ts'
+import { skinMask } from '../hand/skin.ts'
+import type { SkinMask } from '../hand/skin.ts'
 import { makeSlider, makeNudo } from './heads.ts'
 
 // public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
@@ -14,8 +16,8 @@ export type RingInfo = {
   pave: Partial<Record<'semi' | 'alt' | 'full' | 'both', PaveOpt>>
 }
 // frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
-export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number }
-export type StageEls = { img: HTMLImageElement; tint: HTMLElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement }
+export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number; custom?: boolean }
+export type StageEls = { img: HTMLImageElement; tint: HTMLElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void }
 
 // ---- 조명 (원본 main13.js 14~30행)
 function makeEnv(bg, lights) {
@@ -61,8 +63,13 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
   function setHand(h) {
     N = h.N; P = h.P; LMS = h.LMS; frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
+    // 내가 올린 영상은 예시 손에 맞춰 잡은 보정(손등 기울기, 옆 이동, 옆 조임)을 끔
+    // + 반지 크기·위치도 예전 배율(FRK)·P 값 대신 잰 약지 폭으로 정함 (place 참고)
+    CUSTOM = !!h.custom; fixed = null
+    if (h.custom) { TILT = 1; LSH = 0; SQZ = 1; FRK = 1 } else { TILT = 1.8; LSH = 0.07; SQZ = 0.89; FRK = 0.85 }
     frames.forEach(u => { new Image().src = u })   // 미리 받아두기
     cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
+    masks.clear(); meas.clear(); inflight.clear(); warmId++; if (DEBUG || CUSTOM) warm(); report()
   }
 
   let LIGHT = 'office'
@@ -125,7 +132,12 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
   function place(p) {
     const { ring, ring2 } = S
-    if (!p) { [ring, ring2].forEach(g => { if (g) { g.visible = false; g.userData.stones.visible = false } }); if (S.head) S.head.visible = false; S.MASK = null; hideOcc(); return }
+    if (CUSTOM) {   // 내 영상: 중심 = 13·14를 4:6, 방향 = 13→14, 크기 = 고정 폭 × (이 프레임 13→14 길이 ÷ 잰 프레임들 길이)
+      const L = LMS[cur], w = widthNow()
+      p = L && w != null ? [L[13][0] * 0.6 + L[14][0] * 0.4, L[13][1] * 0.6 + L[14][1] * 0.4, L[13][2] * 0.6 + L[14][2] * 0.4, L[14][0] - L[13][0], L[14][1] - L[13][1], L[14][2] - L[13][2], w / 2] : null
+      usedW = w
+    }
+    if (!p) { usedW = null; outerPx = null; [ring, ring2].forEach(g => { if (g) { g.visible = false; g.userData.stones.visible = false } }); if (S.head) S.head.visible = false; S.MASK = null; hideOcc(); return }
     const [cx, cy, cz, dx, dy, dz, fr] = p
     const FD = S.FD, GW = S.GW, WMM = S.WMM, head = S.head
     const axis = new THREE.Vector3(dx, -dy, -dz * DZK).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
@@ -134,9 +146,9 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     pos.add(new THREE.Vector3(1, 0, 0).applyQuaternion(qR).multiplyScalar(Rin * LSH))   // LSH: 반지를 손가락 옆 방향으로 살짝 옮김 (이 영상에서 왼쪽으로 치우쳐 보여서)
     setRing(ring, qR, pos, Rin, bandW, axis, 0, paveCfg(), SQZ)
     if (ring2) setRing(ring2, qR, pos, Rin, W2, axis, bandW / 2 + gap + W2 / 2, S.GPAVE ? { ys: [0], arc: 1, d: GW * 0.75 } : null, SQZ)
-    { const L = LMS[cur]; OX = cx - (L[13][0] + L[14][0]) / 2; OY = cy - (L[13][1] + L[14][1]) / 2 }
+    if (CUSTOM) { OX = 0; OY = 0 } else { const L = LMS[cur]; OX = cx - (L[13][0] + L[14][0]) / 2; OY = cy - (L[13][1] + L[14][1]) / 2 }
     placeOcc(LMS[cur], frK * OCCK)
-    const t = ring.userData.t, u2 = Math.hypot(dx, dy) || 1
+    const t = ring.userData.t; outerPx = 2 * Rin * (1 + t); const u2 = Math.hypot(dx, dy) || 1
     S.MASK = { cx, cy, ux: dx / u2, uy: dy / u2, hw: Rin * SQZ * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
     const MASK = S.MASK
     if (head) {
@@ -174,7 +186,117 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   function show(i = cur) {
     cur = Math.max(PMIN, Math.min(PMAX, Math.round(i))); img.src = frames[cur]
     if (P[cur]) zc = [P[cur][0], P[cur][1]]
-    place(P[cur]); renderer.render(S.scene, cam); composite(); shadow(); applyZoom()
+    place(P[cur]); renderer.render(S.scene, cam); composite(); shadow(); applyZoom(); drawDebug(); wantMask(); report()
+  }
+
+  // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
+  // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
+  let DEBUG = false, CUSTOM = false
+  let fixed: { W: number; L: number; n: number } | null = null   // 고정 폭(px), 잰 프레임들의 13→14 길이(px), 잰 프레임 수
+  let usedW: number | null = null, outerPx: number | null = null
+  const len1314 = (i: number) => { const L = LMS[i]; return L ? Math.hypot(L[14][0] - L[13][0], L[14][1] - L[13][1]) : 0 }
+  function widthNow() { return fixed && fixed.n > 0 && len1314(cur) > 0 ? fixed.W * len1314(cur) / fixed.L : null }
+  // 재생 구간을 다 재고 나면, 양쪽 경계가 다 잡힌 프레임들의 폭 가운데값을 하나로 고정
+  function refix() {
+    if (!CUSTOM || fixed) return false
+    const ws: number[] = [], ls: number[] = []
+    for (let i = PMIN; i <= PMAX; i++) {
+      const r = meas.get(frames[i]); if (!r) return false
+      if (r.w != null) { ws.push(r.w); ls.push(len1314(i)) }
+    }
+    fixed = ws.length ? { W: median(ws), L: median(ls), n: ws.length } : { W: 0, L: 1, n: 0 }
+    return true
+  }
+  const masks = new Map<string, SkinMask>(), meas = new Map<string, any>(), inflight = new Map<string, Promise<void>>()
+  let warmId = 0   // 손 영상이 바뀌면 올라가서, 이전 영상의 계산 결과를 버림
+  const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
+  function ensureMask(i: number) {   // 프레임 i 의 마스크와 폭을 (아직 없으면) 계산
+    const url = frames[i]; if (!url || masks.has(url)) return Promise.resolve()
+    let p = inflight.get(url)
+    if (!p) {
+      const id = warmId
+      p = skinMask(url).then(m => {
+        if (id !== warmId) return
+        masks.set(url, m); const L = LMS[i]; if (L) meas.set(url, measure(L, m))
+        if (refix()) show(cur); else { report(); if (DEBUG && frames[cur] === url) drawDebug() }
+      }).catch(() => {}).finally(() => inflight.delete(url))
+      inflight.set(url, p)
+    }
+    return p
+  }
+  function wantMask() { if (DEBUG) ensureMask(cur) }
+  async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && (DEBUG || CUSTOM) && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
+  // 양쪽 경계가 다 잡힌 프레임의 폭만 모아 가운데값(median)을 화면에 알려줌
+  function report() {
+    if (!els.onInfo) return
+    if (CUSTOM) {
+      const total = PMAX - PMIN + 1; let done = 0
+      for (let i = PMIN; i <= PMAX; i++) if (meas.get(frames[i])) done++
+      if (!fixed) { els.onInfo(`약지 폭 재는 중 ${done}/${total}`); return }
+      if (!fixed.n) { els.onInfo('약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)'); return }
+      if (!DEBUG) { els.onInfo(''); return }
+      els.onInfo(`잰 프레임 ${fixed.n}/${total} · 고정 폭 ${fixed.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px`)
+      return
+    }
+    if (!DEBUG) { els.onInfo(''); return }
+    const ok: number[] = [], total = PMAX - PMIN + 1; let done = 0
+    for (let i = PMIN; i <= PMAX; i++) { const r = meas.get(frames[i]); if (!r) continue; done++; if (r.w != null) ok.push(r.w) }
+    const cu = meas.get(frames[cur])
+    const head = ok.length ? `폭 ${median(ok).toFixed(1)}px · ${ok.length}프레임 사용` : '폭 아직 없음'
+    const prog = done < total ? ` (계산 ${done}/${total})` : done !== ok.length ? ` (${done - ok.length}프레임 제외)` : ''
+    const now = cu ? (cu.w != null ? ` · 이 프레임 ${cu.w.toFixed(1)}px (소지 ${cu.kindP}·중지 ${cu.kindM})` : ' · 이 프레임은 제외') : ''
+    els.onInfo(head + prog + now)
+  }
+  // 13→14 가운데에서 손가락에 수직으로 소지선(17→18)·중지선(9→10)까지 걸어가며 양쪽 경계를 찾음.
+  // 경계 = 구간 안에서 마스크가 끝나는 곳, 마스크가 끝까지 이어지면(손가락이 붙음) 밝기가 가장 어두운 곳(손가락 사이 틈)
+  function measure(L, m: SkinMask) {
+    const a = L[13], b = L[14], c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]
+    let n = [-u[1], u[0]]
+    if ((L[9][0] - c[0]) * n[0] + (L[9][1] - c[1]) * n[1] < 0) n = [-n[0], -n[1]]   // +n = 중지 쪽, -n = 소지 쪽
+    const hit = (P, Q) => { const d = [Q[0] - P[0], Q[1] - P[1]], den = n[0] * d[1] - n[1] * d[0]; return Math.abs(den) < 1e-6 ? null : ((P[0] - c[0]) * d[1] - (P[1] - c[1]) * d[0]) / den }
+    const sM = hit(L[9], L[10]), sP = hit(L[17], L[18])
+    if (sM == null || sP == null || sM <= 2 || sP >= -2) return { c, n, w: null, limM: 60, limP: 60 }
+    const limM = sM, limP = -sP, fail = { c, n, w: null, limM, limP }
+    const skin = (x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
+    const lumaAt = (x, y) => { let t = 0; for (const o of [-2, 0, 2]) { const ix = Math.round((x + u[0] * o) * m.lw / IW), iy = Math.round((y + u[1] * o) * m.lh / IH); t += ix >= 0 && iy >= 0 && ix < m.lw && iy < m.lh ? m.luma[iy * m.lw + ix] : 255 } return t / 3 }
+    if (!skin(c[0], c[1])) return fail
+    const side = (sg, lim) => {
+      let s = 0; while (s < lim && skin(c[0] + n[0] * sg * (s + 0.25), c[1] + n[1] * sg * (s + 0.25))) s += 0.25
+      if (s < lim - 0.25) return { s, kind: '마스크' }
+      const prof = []; for (let t = 0.3 * lim; t <= 0.85 * lim; t += 0.5) prof.push([t, lumaAt(c[0] + n[0] * sg * t, c[1] + n[1] * sg * t)])
+      if (prof.length < 5) return null
+      const sm = prof.map((_, i) => { let q = 0, k = 0; for (let j = -2; j <= 2; j++) { const e = prof[i + j]; if (e) { q += e[1]; k++ } } return q / k })
+      let bi = 0; sm.forEach((v, i) => { if (v < sm[bi]) bi = i })
+      if (sm[bi] > 0.85 * median(sm)) return null   // 뚜렷하게 어두운 곳이 없으면 못 잡은 것
+      return { s: prof[bi][0], kind: '어두움' }
+    }
+    const rM = side(1, limM), rP = side(-1, limP)
+    if (!rM || !rP) return fail
+    return { c, n, limM, limP, w: rM.s + rP.s, A: [c[0] - n[0] * rP.s, c[1] - n[1] * rP.s], B: [c[0] + n[0] * rM.s, c[1] + n[1] * rM.s], kindM: rM.kind, kindP: rP.kind }
+  }
+  const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]]
+  function drawDebug() {
+    const cv2 = els.debug; if (!cv2) return
+    const x = cv2.getContext('2d'), k = cv2.width / IW; x.clearRect(0, 0, cv2.width, cv2.height)
+    const L = DEBUG && LMS[cur]; if (!L) return
+    const mk = masks.get(frames[cur])
+    if (mk) x.drawImage(mk.overlay, 0, 0, cv2.width, cv2.height)
+    x.lineCap = 'round'
+    x.strokeStyle = '#39d98a'; x.lineWidth = 2 * k
+    BONES.forEach(([a, b]) => { if ((a === 13 && b === 14)) return; x.beginPath(); x.moveTo(L[a][0] * k, L[a][1] * k); x.lineTo(L[b][0] * k, L[b][1] * k); x.stroke() })
+    x.strokeStyle = '#ff2d2d'; x.lineWidth = 4 * k; x.beginPath(); x.moveTo(L[13][0] * k, L[13][1] * k); x.lineTo(L[14][0] * k, L[14][1] * k); x.stroke()
+    const r = mk && meas.get(frames[cur])
+    if (r) { // 폭 재기: 소지선~중지선 사이 수직선(노랑) + 경계 두 점(초록) + 폭 숫자
+      x.strokeStyle = '#ffd25a'; x.lineWidth = 2 * k; x.beginPath(); x.moveTo((r.c[0] - r.n[0] * r.limP) * k, (r.c[1] - r.n[1] * r.limP) * k); x.lineTo((r.c[0] + r.n[0] * r.limM) * k, (r.c[1] + r.n[1] * r.limM) * k); x.stroke()
+      if (r.w != null) {
+        ;[r.A, r.B].forEach(p => { x.beginPath(); x.arc(p[0] * k, p[1] * k, 6 * k, 0, TAU); x.fillStyle = '#19d96b'; x.fill(); x.lineWidth = 2 * k; x.strokeStyle = '#fff'; x.stroke() })
+      }
+      const txt = r.w == null ? '제외' : `${r.w.toFixed(1)}px`
+      x.font = `700 ${15 * k}px sans-serif`; x.lineWidth = 4 * k; x.strokeStyle = 'rgba(0,0,0,.75)'; x.fillStyle = '#fff'
+      x.strokeText(txt, (r.c[0] + 10) * k, (r.c[1] - 10) * k); x.fillText(txt, (r.c[0] + 10) * k, (r.c[1] - 10) * k)
+    }
+    L.forEach((p, i) => { const big = i === 13 || i === 14; x.beginPath(); x.arc(p[0] * k, p[1] * k, (big ? 7 : 3) * k, 0, TAU); x.fillStyle = big ? '#ff2d2d' : '#ffffff'; x.fill(); x.lineWidth = 1.2 * k; x.strokeStyle = big ? '#fff' : '#39d98a'; x.stroke() })
   }
 
   // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐
@@ -257,6 +379,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     dragEnd() { dragX = null; resumeAt = performance.now() + 1500 },
     pick(id: string) { const i = CAT.findIndex(c => c.id === id); if (i >= 0) pickRing(i) },
     // 위쪽 버튼: 재생/멈춤, 가까이, 내 호수(안쪽 둘레 40+호수 mm 로 손가락 굵기를 다시 잡음)
+    setDebug(on: boolean) { DEBUG = on; if (on) { warm(); wantMask() } report(); drawDebug() },
     setPlaying(on: boolean) { AUTO = on; resumeAt = 0 },
     setZoom(on: boolean) { zoom = on; renderer.setPixelRatio(on ? 3 : Math.min(2, window.devicePixelRatio || 1)); renderer.setSize(IW, IH, false); show() },
     setHo(ho: number) { S.HO = ho; S.FD = (40 + ho) / Math.PI; rebuild(); show() },

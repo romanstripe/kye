@@ -9,6 +9,7 @@ const GEMS: Record<string, { n: string }> = GEMS_
 // 반지 자세히 설정 (원본 데모 renderDetail 과 같은 항목·같은 순서)
 type Opt = [string | number | boolean, string, string?]
 const METAL: Opt[] = [['PG', '로즈골드', '#e9b49e'], ['YG', '옐로골드', '#e8c06a'], ['WG', '화이트골드', '#dfe2e6']]
+const GAPS: Opt[] = [[0.5, '딱 붙여서'], [1.7, '살짝 띄워서'], [2.5, '띄워서']]   // 같은 손가락에 쌓을 때 앞 반지와의 간격(mm)
 const SAME_METAL: Opt[] = [['same', '반지와 같은 색'], ...METAL]
 
 function Chips({ opts, cur, onPick }: { opts: Opt[]; cur: unknown; onPick: (v: any) => void }) {
@@ -70,6 +71,11 @@ export default function Detail({ ring: c, menu, onBack }: { ring: RingInfo; menu
         {c.widths.length >= 2 && (
           <Group label="폭">
             <Chips opts={c.widths.map((w): Opt => [w, c.widthLabels?.[String(w)] ?? `${w}mm`])} cur={s.WMM} onPick={(v) => set({ WMM: v })} />
+          </Group>
+        )}
+        {s.stacked && (
+          <Group label="앞 반지와 간격">
+            <Chips opts={GAPS} cur={s.GAPMM} onPick={(v) => set({ GAPMM: v })} />
           </Group>
         )}
         {c.rimColor && (

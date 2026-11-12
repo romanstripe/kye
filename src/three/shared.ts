@@ -30,6 +30,7 @@ export const S = {
   HO: 17.5, FD: (40 + 17.5) / Math.PI,   // 호수 → 안쪽 둘레(40+호수 mm) → 지름
   WMM: 4.8, WALL: 1.8, METAL: 'PG', PAVE: 'none', GW: 0, GPAVE: false, GMETAL: 'same', RMETAL: 'same',
   FINGER: 'ring',   // 이 반지를 끼운 손가락
+  GAPMM: 2.5,   // 앞 반지와의 간격(mm), 같은 손가락에 쌓을 때
   CUT: 'round', CT: 1, GEM: 'dia', PRONG: 4,
   CI: 0, ring: null, ring2: null, head: null, MASK: null, pxmmNow: 1,
 }

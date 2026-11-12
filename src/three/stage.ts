@@ -49,7 +49,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     T = h.custom ? MINE : DEMO; fixed = null
     frames.forEach(u => { new Image().src = u })   // 미리 받아두기
     cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
-    masks.clear(); meas.clear(); inflight.clear(); warmId++; if (DEBUG || needFixed()) warm(); report()
+    masks.clear(); meas.clear(); fingerMemo = null; inflight.clear(); warmId++; warm(); report()   // 손 영상을 불러오면 재생 구간의 다섯 손가락 폭을 미리 재 둠 (끝나면 다시 재지 않음)
   }
 
 
@@ -66,8 +66,9 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
 
   // ---- 끼운 반지(슬롯): 슬롯마다 3D 객체(objs)와 옵션 상태(st)를 가짐. S 와 S.ring/ring2/head 는 지금 고르는 슬롯(AI)의 것
-  const KEYS = ['FINGER', 'CI', 'WMM', 'WALL', 'METAL', 'PAVE', 'GW', 'GPAVE', 'GMETAL', 'RMETAL', 'CUT', 'CT', 'GEM', 'PRONG']
+  const KEYS = ['FINGER', 'GAPMM', 'CI', 'WMM', 'WALL', 'METAL', 'PAVE', 'GW', 'GPAVE', 'GMETAL', 'RMETAL', 'CUT', 'CT', 'GEM', 'PRONG']
   const SLOTS: { objs: { ring: any; ring2: any; head: any } | null; st: any }[] = []
+  const MAX_PER_FINGER = 3
   let AI = 0, THUMBING = false, MASKS: any[] = [], PICKF = false   // PICKF: 반지 낄 손가락을 고르는 중
   const snap = () => Object.fromEntries(KEYS.map(k => [k, S[k]]))
   const slotList = () => SLOTS.map((sl, i) => ({ id: CAT[sl.st.CI].id, active: i === AI, finger: sl.st.FINGER as string }))
@@ -78,13 +79,14 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   // 손가락 고르기: 손가락마다 반지 자리에 ＋ 점을 띄움 (영상은 멈춤). 한 손가락에 최대 3개
   function emitHints() {
     const cnt = {}; SLOTS.forEach(sl => { cnt[sl.st.FINGER] = (cnt[sl.st.FINGER] || 0) + 1 })
-    els.onHints?.(PICKF ? FINGERS.filter(f => (cnt[f] || 0) < 3).map(f => ({ f, name: FINGER_NAME[f], pose: poseOf(f) })).filter(h => h.pose).map(h => ({ f: h.f, name: h.name, x: h.pose[0], y: h.pose[1] })) : [])
+    els.onHints?.(PICKF ? FINGERS.filter(f => (cnt[f] || 0) < MAX_PER_FINGER).map(f => ({ f, name: FINGER_NAME[f], pose: poseOf(f) })).filter(h => h.pose).map(h => ({ f: h.f, name: h.name, x: h.pose[0], y: h.pose[1] })) : [])
   }
-  function setPick(on: boolean) { PICKF = on; if (on && !WANT) { WANT = true; warm() } if (!on) resumeAt = performance.now() + 800; emitHints() }
+  function setPick(on: boolean) { PICKF = on; if (!on) resumeAt = performance.now() + 800; emitHints() }
   function switchSlot(i: number) { if (i === AI || !SLOTS[i]) return; activate(i); notifySlots(); show() }
   function addSlot(finger?: string) {   // 지금 반지와 같은 설정으로 하나 더 (가드링은 없음으로), 끼울 손가락은 finger
     if (SLOTS.length >= 8) return
-    const st = snap(); S.ring = S.ring2 = S.head = null; AI = SLOTS.length; SLOTS.push({ objs: null, st: null }); Object.assign(S, st, { GW: 0, FINGER: finger ?? st.FINGER }); rebuild(); show()
+    const st = snap(); if (SLOTS.filter(sl => sl.st.FINGER === (finger ?? st.FINGER)).length >= MAX_PER_FINGER) return   // 한 손가락에 최대 3개
+ S.ring = S.ring2 = S.head = null; AI = SLOTS.length; SLOTS.push({ objs: null, st: null }); Object.assign(S, st, { GW: 0, FINGER: finger ?? st.FINGER, GAPMM: 2.5 }); rebuild(); show()
   }
   function removeSlot(i: number) {
     if (SLOTS.length < 2 || !SLOTS[i]) return
@@ -177,17 +179,22 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
       const nn = new THREE.Vector3(0, 0, 1); nn.sub(axis.clone().multiplyScalar(nn.dot(axis)))
       const cnt = SLOTS.filter(sl => sl.st.FINGER === f).length
       CLIPS[f] = nn.length() < 0.15 ? new THREE.Plane(new THREE.Vector3(0, 0, 1), 1000) : new THREE.Plane().setFromNormalAndCoplanarPoint(nn.normalize(), pos.clone().add(nn.clone().multiplyScalar(-Rin * (cnt > 1 ? 0.6 : 0.15))))
+      // 같은 손가락에 낀 반지들: 처음 낀 반지는 제자리, 나중에 낀 반지는 폭 + 앞 반지와의 간격(GAPMM)만큼 손톱 쪽으로 차곡차곡 (위 = 손톱 쪽 = 나중에 낀 반지)
+      const idx = SLOTS.map((_, i) => i).filter(i => SLOTS[i].st.FINGER === f && SLOTS[i].objs)
+      let end = 0
+      const offs = idx.map((i, n) => { const q = SLOTS[i].st, w = q.WMM + (q.GW > 0 ? q.GW + 0.2 : 0), o = (n ? end + q.GAPMM : 0) + q.WMM / 2; end = (n ? end + q.GAPMM : 0) + w; return o })
       SLOTS.forEach((sl, si) => {
         const st = sl.st, o = sl.objs; if (!o || st.FINGER !== f) return
+        const n = idx.indexOf(si), offpx = (offs[n] - offs[0]) * pxmm   // 처음 낀 반지 기준으로 축을 따라 옮길 거리(px)
         const bandW = st.WMM * pxmm, W2 = st.GW * pxmm
-        setRing(o.ring, qR, pos, Rin, bandW, axis, 0, paveCfgOf(st), sqz)
-        if (o.ring2) setRing(o.ring2, qR, pos, Rin, W2, axis, bandW / 2 + gap + W2 / 2, st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null, sqz)
+        setRing(o.ring, qR, pos, Rin, bandW, axis, offpx, paveCfgOf(st), sqz)
+        if (o.ring2) setRing(o.ring2, qR, pos, Rin, W2, axis, offpx + bandW / 2 + gap + W2 / 2, st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null, sqz)
         const t = o.ring.userData.t
         if (si === AI) { outerPx = 2 * Rin * (1 + t); usedW = fr * 2; S.pxmmNow = pxmm }
-        const MK = { cx, cy, ux: dx / u2, uy: dy / u2, hw: Rin * sqz * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
+        const MK = { cx: cx + dx / u2 * offpx, cy: cy + dy / u2 * offpx, ux: dx / u2, uy: dy / u2, hw: Rin * sqz * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
         const head = o.head
         if (head) {
-          const qq = head.userData.slide ? qR.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)) : qH; head.quaternion.copy(qq); head.userData.q0 = qq.clone(); head.userData.axis = axis.clone(); slideHead(head); head.position.copy(pos); head.scale.setScalar(pxmm); head.visible = true
+          const qq = head.userData.slide ? qR.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)) : qH; head.quaternion.copy(qq); head.userData.q0 = qq.clone(); head.userData.axis = axis.clone(); slideHead(head); head.position.copy(pos).add(axis.clone().multiplyScalar(offpx)); head.scale.setScalar(pxmm); head.visible = true
           MK.hw += (head.userData.top + head.userData.W / 2 - FD / 2) * pxmm; MK.hl = Math.max(MK.hl, (head.userData.L / 2 + 1.5) * pxmm * 1.2)
         }
         MASKS.push(MK)
@@ -216,12 +223,14 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     objs.forEach((l, i) => l.forEach((g, k) => { g.visible = was[i][k] })); occs.forEach((m, i) => { m.visible = occWas[i] })
   }
 
+  // 캔버스 크기는 달라졌을 때만 바꿈 (width 를 다시 쓰면 매번 메모리를 새로 잡고 지워서 느림)
+  const fit = (c: HTMLCanvasElement) => { if (c.width !== cv.width || c.height !== cv.height) { c.width = cv.width; c.height = cv.height } }
   const maskCv = document.createElement('canvas')
   function composite() {
-    outc.width = cv.width; outc.height = cv.height; const k = cv.width / IW
+    fit(outc); const k = cv.width / IW
     ox.clearRect(0, 0, outc.width, outc.height); if (!MASKS.length) return
     ox.drawImage(cv, 0, 0)
-    maskCv.width = outc.width; maskCv.height = outc.height; const mx = maskCv.getContext('2d'); mx.fillStyle = '#000'   // 반지마다 자를 영역을 모두 합쳐서 한 번에 자름
+    fit(maskCv); const mx = maskCv.getContext('2d'); mx.clearRect(0, 0, maskCv.width, maskCv.height); mx.fillStyle = '#000'   // 반지마다 자를 영역을 모두 합쳐서 한 번에 자름
     MASKS.forEach(({ cx, cy, ux, uy, hw, hl }) => {
       const px = -uy, py = ux; mx.beginPath();
       [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].forEach(([a, b], i) => { const X = (cx + ux * a + px * b) * k, Y = (cy + uy * a + py * b) * k; i ? mx.lineTo(X, Y) : mx.moveTo(X, Y) })
@@ -232,10 +241,10 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
   const tmp = document.createElement('canvas')
   function shadow() {
-    sh.width = cv.width; sh.height = cv.height; const k = cv.width / IW
+    fit(sh); const k = cv.width / IW
     sx2.clearRect(0, 0, sh.width, sh.height)
     // 그림자 두 겹: 넓고 옅은 그림자(공중에 뜬 느낌 지움) + 반지가 피부에 닿는 곳의 짙고 좁은 접촉 그림자
-    tmp.width = sh.width; tmp.height = sh.height; const tx = tmp.getContext('2d');
+    fit(tmp); const tx = tmp.getContext('2d');
     [[7, 2, 4, 'rgba(70,40,32,0.32)'], [1.6, 0.6, 1.4, 'rgba(45,25,20,0.75)']].forEach(([bl, dx, dy, col]) => {
       tx.clearRect(0, 0, tmp.width, tmp.height); tx.filter = `blur(${bl * k}px)`; tx.drawImage(outc, dx * k, dy * k); tx.filter = 'none'
       tx.globalCompositeOperation = 'source-in'; tx.fillStyle = col; tx.fillRect(0, 0, tmp.width, tmp.height); tx.globalCompositeOperation = 'source-over'
@@ -243,10 +252,13 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     })
   }
 
+  // 한 프레임 그리는 시간(ms): show 는 반지 놓기부터 그림자까지, 반짝임 갱신은 그리기부터 그림자까지. 최근 30번을 디버그에 보여줌
+  const drawMs: number[] = []
+  const lap = (t0: number) => { drawMs.push(performance.now() - t0); if (drawMs.length > 30) drawMs.shift() }
   function show(i = cur) {
     cur = Math.max(PMIN, Math.min(PMAX, Math.round(i))); img.src = frames[cur]
     if (P[cur]) zc = [P[cur][0], P[cur][1]]
-    place(); renderMain(); composite(); shadow(); applyZoom(); drawDebug(); wantMask(); report(); if (PICKF) emitHints()
+    const t0 = performance.now(); place(); renderMain(); composite(); shadow(); lap(t0); applyZoom(); drawDebug(); wantMask(); report(); if (PICKF) emitHints()
   }
 
   // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
@@ -254,11 +266,9 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let DEBUG = false
   let fixed: Record<string, { W: number; L: number; n: number }> | null = null   // 손가락별 고정 폭(px), 잰 프레임들의 관절 길이(px), 잰 프레임 수
   let usedW: number | null = null, outerPx: number | null = null
-  let WANT = false   // 예시 손에서 다른 손가락을 고르려 하면 켜져서, 손가락 폭을 재기 시작함
-  const needFixed = () => T.measured || WANT
   // 재생 구간을 다 재고 나면, 손가락마다 양쪽 경계가 다 잡힌 프레임들의 폭 가운데값을 하나로 고정
   function refix() {
-    if (!needFixed() || fixed) return false
+    if (fixed) return false
     for (let i = PMIN; i <= PMAX; i++) if (!meas.get(frames[i])) return false
     fixed = Object.fromEntries(FINGERS.map(f => {
       const ws: number[] = [], ls: number[] = []
@@ -284,17 +294,22 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     return p
   }
   function wantMask() { if (DEBUG) ensureMask(cur) }
-  async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && (DEBUG || needFixed()) && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
+  async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
   function report() { if (els.onInfo) (T.measured ? reportMine : reportDemo)(els.onInfo) }
   // 내 영상: 폭 재는 중 / 실패 / (디버그) 고정 폭과 반지 크기
   // 손가락별: 재생 구간에서 양쪽 경계가 잡힌 프레임들의 폭 가운데값(잰 프레임 수)
+  let fingerMemo: { n: number; txt: string } | null = null   // 측정 개수가 같으면 다시 계산하지 않음 (끝나면 그대로)
   function fingerLine() {
-    return FINGERS.map(f => {
+    if (fingerMemo && fingerMemo.n === meas.size) return fingerMemo.txt
+    const txt = FINGERS.map(f => {
       const ws: number[] = []
       for (let i = PMIN; i <= PMAX; i++) { const q = meas.get(frames[i])?.[f]; if (q?.w != null) ws.push(q.w) }
       return `${FINGER_NAME[f]} ${ws.length ? median(ws).toFixed(1) : '-'}(${ws.length})`
     }).join(' · ')
+    fingerMemo = { n: meas.size, txt }
+    return txt
   }
+  const msLine = () => drawMs.length ? `\n그리기 ${(drawMs.reduce((a, b) => a + b, 0) / drawMs.length).toFixed(1)}ms (최근 ${drawMs.length}번 평균, 최대 ${Math.max(...drawMs).toFixed(1)}ms)` : ''
   function reportMine(say: (s: string) => void) {
     const total = PMAX - PMIN + 1; let done = 0
     for (let i = PMIN; i <= PMAX; i++) if (meas.get(frames[i])) done++
@@ -303,7 +318,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (!fr.n) { say('약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)'); return }
     if (!DEBUG) { say(''); return }
     say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px
-${fingerLine()}`)
+${fingerLine()}${msLine()}`)
   }
   // 예시 손: (디버그) 잰 폭 가운데값만 보여줌. 반지 크기에는 쓰지 않음
   function reportDemo(say: (s: string) => void) {
@@ -314,7 +329,7 @@ ${fingerLine()}`)
     const head = ok.length ? `폭 ${median(ok).toFixed(1)}px · ${ok.length}프레임 사용` : '폭 아직 없음'
     const prog = done < total ? ` (계산 ${done}/${total})` : done !== ok.length ? ` (${done - ok.length}프레임 제외)` : ''
     const now = cu ? (cu.w != null ? ` · 이 프레임 ${cu.w.toFixed(1)}px (소지 ${cu.kindP}·중지 ${cu.kindM})` : ' · 이 프레임은 제외') : ''
-    say(head + prog + now + '\n' + fingerLine())
+    say(head + prog + now + '\n' + fingerLine() + msLine())
   }
   function drawDebug() {
     const cv2 = els.debug; if (!cv2) return
@@ -361,7 +376,7 @@ ${fingerLine()}`)
 
   // 가만히 있어도 반짝이게: 파베 알이 하나씩 반짝이고, 큰 알과 조명이 아주 살짝 움직임 (초당 15번)
   // 손 영상 자동 재생: 앞뒤로 계속 왕복 (초당 10장). 손으로 끌면 멈췄다가 1.5초 뒤 다시 돎
-  let lastTw = 0, raf = 0
+  let lastTw = 0, lastRep = 0, raf = 0
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle)
     if (AUTO && !PICKF && !document.hidden && dragX === null && now > resumeAt && now - lastPlay > 100) {
@@ -384,7 +399,8 @@ ${fingerLine()}`)
       if (head && head.userData.gem && !head.userData.slide) { const gm = head.userData.gem; gm.rotation.y = 0.06 * Math.sin(t * 0.7); gm.rotation.x = 0.04 * Math.sin(t * 1.1) }
     })
     key.position.set(-0.4 + 0.35 * Math.sin(t * 0.5), 1, 0.8 + 0.2 * Math.cos(t * 0.4))
-    renderMain(); composite(); shadow()
+    const t0 = performance.now(); renderMain(); composite(); shadow(); lap(t0)
+    if (DEBUG && now - lastRep > 500) { lastRep = now; report() }
   }
 
   setHand(hand); const thumbs = makeThumbs(); rebuild(); show()
@@ -392,7 +408,7 @@ ${fingerLine()}`)
   return {
     thumbs,
     // 상세 설정: 현재 고른 옵션 읽기 / 바꾸기 (바꾸면 반지를 다시 만들어 그림)
-    state() { const { CI, WMM, WALL, METAL, PAVE, GW, GPAVE, GMETAL, RMETAL, CUT, CT, GEM, PRONG } = S; return { CI, WMM, WALL, METAL, PAVE, GW, GPAVE, GMETAL, RMETAL, CUT, CT, GEM, PRONG } },
+    state() { const { CI, WMM, WALL, METAL, PAVE, GW, GPAVE, GMETAL, RMETAL, CUT, CT, GEM, PRONG, GAPMM } = S, stacked = SLOTS.findIndex(sl => sl.st.FINGER === S.FINGER) < AI; return { CI, WMM, WALL, METAL, PAVE, GW, GPAVE, GMETAL, RMETAL, CUT, CT, GEM, PRONG, GAPMM, stacked } },   // stacked: 같은 손가락에서 먼저 낀 반지가 있음(간격 고르기 가능)
     set(patch: Record<string, any>) { Object.assign(S, patch); rebuild(); show() },
     setHand(h: HandData) { setHand(h); show(PMAX) },
     dragStart(x: number, y: number) { dragX = x; dragY = y; drag0 = cur },

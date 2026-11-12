@@ -3,7 +3,17 @@ import { createStage } from './three/stage.ts'
 import type { RingInfo, HandData } from './three/stage.ts'
 import { analyzeVideo, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
 
-export type Menu = { rings: RingInfo[]; thumbs: Record<string, string>; pick: (id: string) => void; initial: string }
+export type Menu = {
+  rings: RingInfo[]
+  thumbs: Record<string, string>
+  pick: (id: string) => void
+  initial: string
+  state: () => Record<string, any>
+  set: (patch: Record<string, any>) => void
+}
+
+// 내 호수 5~25호, 0.5 단위
+const HOS = Array.from({ length: 41 }, (_, i) => 5 + i * 0.5)
 
 const IW = 480
 const IH = 854
@@ -22,6 +32,12 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
   const [busy, setBusy] = useState<number | null>(null) // 처리한 프레임 수
   const [custom, setCustom] = useState(false)
   const [msg, setMsg] = useState('')
+  const [playing, setPlaying] = useState(true)
+  const [zoom, setZoom] = useState(false)
+  const [ho, setHo] = useState(17.5)
+  const [hoOpen, setHoOpen] = useState(false)
+  const hoBtn = useRef<HTMLButtonElement>(null)
+  const hoPop = useRef<HTMLDivElement>(null)
   const ready = useRef(onReady)
   ready.current = onReady
 
@@ -29,13 +45,18 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
     let stage: ReturnType<typeof createStage> | null = null
     let dead = false
     Promise.all([
-      fetch('/rings.json').then((r) => r.json() as Promise<RingInfo[]>),
+      fetch('/rings.json').then((r) => r.json() as Promise<{ rings: RingInfo[] }>).then((j) => j.rings),
       fetch('/demo/hand.json').then((r) => r.json()),
     ]).then(([rings, raw]) => {
       if (dead) return
+      // public/demo/hand.json: ringPose=프레임별 반지 자리, landmarks=손 21점, playFrom~playTo=왕복 재생 구간
       const hand: HandData = {
-        ...raw,
-        frames: Array.from({ length: raw.N }, (_, i) => `/demo/${String(i).padStart(2, '0')}.jpg`),
+        N: raw.count,
+        P: raw.ringPose,
+        LMS: raw.landmarks,
+        pmin: raw.playFrom,
+        pmax: raw.playTo,
+        frames: Array.from({ length: raw.count }, (_, i) => `/demo/frames/${String(i).padStart(2, '0')}.jpg`),
       }
       demo.current = hand
       stage = stageRef.current = createStage(
@@ -45,7 +66,10 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
       )
       const id = new URLSearchParams(location.search).get('ring') // 확인용: ?ring=SP
       if (id) stage.pick(id)
-      ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, initial: id ?? rings[0].id })
+      const q = new URLSearchParams(location.search)
+      if (q.has('pave') || q.has('w') || q.has('frame'))
+        stage.debug({ ...(q.has('pave') && { PAVE: q.get('pave') }), ...(q.has('w') && { WMM: +q.get('w')! }) }, q.has('frame') ? +q.get('frame')! : undefined)
+      ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: id ?? rings[0].id })
     })
     return () => {
       dead = true
@@ -54,6 +78,19 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
       if (mine.current) revokeHand(mine.current)
     }
   }, [])
+
+  // 호수 목록: 열 때 고른 호수가 가운데 오게, 바깥을 누르면 닫힘
+  useEffect(() => {
+    if (!hoOpen) return
+    const on = hoPop.current?.querySelector<HTMLElement>('[aria-selected="true"]')
+    if (on && hoPop.current) hoPop.current.scrollTop = on.offsetTop - hoPop.current.clientHeight / 2 + 18
+    const close = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (!hoPop.current?.contains(t) && !hoBtn.current?.contains(t)) setHoOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [hoOpen])
 
   const useDemo = () => {
     if (demo.current) stageRef.current?.setHand(demo.current)
@@ -96,13 +133,69 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
         onPointerCancel={() => stageRef.current?.dragEnd()}
       >
         <div className="zw">
-          <img ref={img} src="/demo/41.jpg" alt="왼손 사진 위에 고른 반지" draggable={false} />
+          <img ref={img} src="/demo/frames/41.jpg" alt="왼손 사진 위에 고른 반지" draggable={false} />
           <div ref={tint} className="tint" />
           <canvas ref={shadow} />
           <canvas ref={out} />
         </div>
       </div>
       <div className="tools">
+        <button
+          className="chip"
+          aria-pressed={!playing}
+          aria-label={playing ? '손 영상 멈추기' : '손 영상 재생'}
+          onClick={() => {
+            stageRef.current?.setPlaying(!playing)
+            setPlaying(!playing)
+          }}
+        >
+          {playing ? '❚❚ 멈춤' : '▶ 재생'}
+        </button>
+        <button
+          ref={hoBtn}
+          type="button"
+          className="chip pick"
+          aria-haspopup="listbox"
+          aria-expanded={hoOpen}
+          onClick={() => setHoOpen((o) => !o)}
+        >
+          <span>내 호수</span> <b>{ho}호</b>
+        </button>
+        {hoOpen && (
+          <div
+            ref={hoPop}
+            className="hopop"
+            role="listbox"
+            aria-label="내 반지 호수"
+            style={{ top: (hoBtn.current?.getBoundingClientRect().bottom ?? 0) + 6, left: hoBtn.current?.getBoundingClientRect().left ?? 0 }}
+          >
+            {HOS.map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="option"
+                aria-selected={v === ho}
+                onClick={() => {
+                  stageRef.current?.setHo(v)
+                  setHo(v)
+                  setHoOpen(false)
+                }}
+              >
+                {v}호
+              </button>
+            ))}
+          </div>
+        )}
+        <button
+          className="chip"
+          aria-pressed={zoom}
+          onClick={() => {
+            stageRef.current?.setZoom(!zoom)
+            setZoom(!zoom)
+          }}
+        >
+          가까이
+        </button>
         <button className="chip" disabled={busy !== null} onClick={() => file.current?.click()}>
           {busy === null ? '내 손으로 해보기' : `손 찾는 중 ${busy}/${FRAME_COUNT}`}
         </button>

@@ -2,12 +2,14 @@ import { useRef, useState } from 'react'
 import HandStage from './HandStage.tsx'
 import type { Menu } from './HandStage.tsx'
 import Wheel from './Wheel.tsx'
+import Detail from './Detail.tsx'
 
 export default function App() {
   // 처음부터 펼쳐진 채로 보임 (애니메이션으로 튀어나오지 않음). 접힌 채로 시작하려면 false
   const [open, setOpen] = useState(true)
   const [menu, setMenu] = useState<Menu | null>(null)
   const [sel, setSel] = useState('')
+  const [view, setView] = useState<'list' | 'detail'>('list')
   const startY = useRef<number | null>(null)
 
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -46,7 +48,10 @@ export default function App() {
           <span className="grab" />
           <span className="grab-t">▲ {menu?.rings.find((r) => r.id === sel)?.name ?? ''} · 반지 고르기</span>
         </button>
-        {open && (
+        {open && menu && view === 'detail' && (
+          <Detail ring={menu.rings.find((r) => r.id === sel)!} menu={menu} onBack={() => setView('list')} />
+        )}
+        {open && view === 'list' && (
           <div>
             {menu && (
               <Wheel
@@ -59,6 +64,9 @@ export default function App() {
                 }}
               />
             )}
+            <button className="primary" style={{ marginTop: 14 }} disabled={!menu} onClick={() => setView('detail')}>
+              이 반지 자세히 설정
+            </button>
           </div>
         )}
       </section>

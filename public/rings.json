@@ -1,251 +1,982 @@
-[
- {
-  "id": "B",
-  "cat": "국민",
-  "name": "비제로투",
-  "sub": "나선 테두리",
-  "ws": [
-   4.8
-  ],
-  "wall": 1.8,
-  "metal": "PG",
-  "pave": {
-   "semi": "세미 파베",
-   "full": "풀 파베"
-  }
- },
- {
-  "id": "Q",
-  "cat": "대세",
-  "name": "콰트레",
-  "sub": "네 가지 질감",
-  "ws": [
-   4,
-   7
-  ],
-  "wl": {
-   "4": "4mm · 두 줄",
-   "7": "7mm · 네 줄"
+{
+ "version": "demo-v51",
+ "note": "길이는 mm. 안쪽 둘레 = 40 + 호수. pave.byWidth = 폭별 파베 배치 설정(reference/main13.js layoutStones가 읽는 값)",
+ "rings": [
+  {
+   "id": "B",
+   "name": "비제로투",
+   "sub": "나선 테두리",
+   "widths": [
+    4.8,
+    7.5
+   ],
+   "widthLabels": {
+    "4.8": "미니 (가운데 1줄)",
+    "7.5": "라지 (가운데 2줄)"
+   },
+   "defaultWidth": 4.8,
+   "wall": 1.8,
+   "metal": "PG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "스파이럴 파베",
+     "byWidth": {
+      "4.8": {
+       "bz": "edge",
+       "d": 1,
+       "noBeads": 1
+      },
+      "7.5": {
+       "bz": "edge",
+       "d": 1,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "밴드 파베",
+     "byWidth": {
+      "4.8": {
+       "bz": "full",
+       "d": 1.55,
+       "noBeads": 1
+      },
+      "7.5": {
+       "bz": "full",
+       "d": 1.6,
+       "noBeads": 1
+      }
+     }
+    },
+    "both": {
+     "label": "스파이럴+밴드 파베",
+     "byWidth": {
+      "4.8": {
+       "bz": "both",
+       "d": 1.55,
+       "noBeads": 1
+      },
+      "7.5": {
+       "bz": "both",
+       "d": 1.6,
+       "noBeads": 1
+      }
+     }
+    }
+   }
   },
-  "dw": 1,
-  "wall": 1.8,
-  "metal": null,
-  "pave": {
-   "semi": "세미 파베",
-   "full": "파베 한 줄"
-  }
- },
- {
-  "id": "L",
-  "cat": "국민",
-  "name": "러브볼트",
-  "sub": "나사 여섯 개",
-  "ws": [
-   3.6,
-   5.5
-  ],
-  "dw": 1,
-  "wall": 1.9,
-  "metal": "YG",
-  "pave": {
-   "semi": "알 6개",
-   "full": "풀 파베"
-  }
- },
- {
-  "id": "CL",
-  "cat": "대세",
-  "name": "클래싱",
-  "sub": "스터드와 구슬",
-  "ws": [
-   5
-  ],
-  "wall": 1.7,
-  "metal": "PG",
-  "pave": {
-   "semi": "구슬에만",
-   "full": "풀 파베"
-  }
- },
- {
-  "id": "SP",
-  "cat": "대세",
-  "name": "세르펜토",
-  "sub": "맞물린 사다리꼴 비늘",
-  "ws": [
-   4
-  ],
-  "wall": 1.7,
-  "metal": "YG",
-  "pave": {
-   "semi": "비늘 하나 걸러",
-   "full": "모든 비늘"
-  }
- },
- {
-  "id": "I",
-  "cat": "패피",
-  "name": "아이스블록",
-  "sub": "작은 큐브 격자",
-  "ws": [
-   3.5
-  ],
-  "wall": 1.6,
-  "metal": "WG",
-  "pave": {
-   "semi": "세미 파베",
-   "full": "풀 파베"
-  }
- },
- {
-  "id": "BB",
-  "cat": "패피",
-  "name": "베르베로",
-  "sub": "네 줄이 하나로",
-  "ws": [
-   5
-  ],
-  "wall": 1.6,
-  "metal": "YG",
-  "pave": {
-   "semi": "한 줄만",
-   "full": "두 줄"
-  }
- },
- {
-  "id": "H",
-  "cat": "국민",
-  "name": "베이비마이",
-  "sub": "벌집 셀",
-  "ws": [
-   2.5,
-   4.5
-  ],
-  "dw": 1,
-  "wall": 1.4,
-  "metal": "PG",
-  "pave": {
-   "semi": "칸 하나 걸러",
-   "full": "모든 칸"
-  }
- },
- {
-  "id": "PE",
-  "cat": "국민",
-  "name": "뻬를라",
-  "sub": "동글동글 구슬",
-  "ws": [
-   2.5,
-   3.5
-  ],
-  "wall": 1.5,
-  "metal": "YG",
-  "pave": {
-   "semi": "구슬 사이사이",
-   "full": "모든 구슬"
-  }
- },
- {
-  "id": "CC",
-  "cat": "국민",
-  "name": "코코퀼트",
-  "sub": "퀼팅 마름모",
-  "ws": [
-   3,
-   5.5
-  ],
-  "wl": {
-   "3": "미니",
-   "5.5": "스몰"
+  {
+   "id": "Q",
+   "name": "콰트레",
+   "sub": "네 가지 질감",
+   "widths": [
+    4,
+    7
+   ],
+   "widthLabels": {
+    "4": "4mm · 두 줄",
+    "7": "7mm · 네 줄"
+   },
+   "defaultWidth": 7,
+   "wall": 1.8,
+   "metal": null,
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "파베 한 줄",
+     "byWidth": {
+      "4": {
+       "ys": [
+        0.25
+       ],
+       "arc": 1,
+       "d": 1.24,
+       "flat": 1
+      },
+      "7": {
+       "ys": [
+        0.375
+       ],
+       "arc": 1,
+       "d": 1.085,
+       "flat": 1
+      }
+     }
+    },
+    "full": {
+     "label": "모든 줄 파베",
+     "byWidth": {
+      "4": {
+       "ys": [
+        -0.25,
+        0.25
+       ],
+       "arc": 1,
+       "d": 1.24,
+       "flat": 1,
+       "noBeads": 1
+      },
+      "7": {
+       "ys": [
+        -0.375,
+        -0.125,
+        0.125,
+        0.375
+       ],
+       "arc": 1,
+       "d": 1.085,
+       "flat": 1,
+       "noBeads": 1
+      }
+     }
+    }
+   }
   },
-  "dw": 1,
-  "wall": 1.6,
-  "metal": "YG",
-  "pave": {
-   "semi": "마름모마다 한 알",
-   "full": "마름모 가득"
-  }
- },
- {
-  "id": "SOL",
-  "cat": "오리지널",
-  "name": "나만의 솔리테어",
-  "sub": "컷·캐럿·알 직접",
-  "ws": [
-   1.6,
-   2,
-   2.5
-  ],
-  "dw": 1,
-  "wall": 1.6,
-  "metal": "WG",
-  "diy": true,
-  "pave": {
-   "semi": "세미 파베",
-   "full": "풀 파베"
-  }
- },
- {
-  "id": "S",
-  "cat": "오리지널",
-  "name": "민짜반지",
-  "sub": "장식 없는 한 줄",
-  "ws": [
-   2,
-   3,
-   4,
-   5,
-   6
-  ],
-  "dw": 1,
-  "wall": 1.8,
-  "metal": "YG",
-  "diy": true,
-  "pave": {
-   "semi": "하프 이터니티",
-   "full": "풀 이터니티"
-  }
- },
- {
-  "id": "MV",
-  "cat": "대세",
-  "name": "무빙원",
-  "sub": "타원 틀 안에서 움직이는 알",
-  "ws": [
-   4.6,
-   5.8
-  ],
-  "wl": {
-   "4.6": "스몰 (타원 10.3mm)",
-   "5.8": "라지 (타원 13.9mm)"
+  {
+   "id": "L",
+   "name": "러브볼트",
+   "sub": "나사 여섯 개",
+   "widths": [
+    3.6,
+    5.5
+   ],
+   "widthLabels": null,
+   "defaultWidth": 5.5,
+   "wall": 1.9,
+   "metal": "YG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "나사 원 안에 6알",
+     "byWidth": {
+      "3.6": {
+       "ys": [
+        0
+       ],
+       "count": 6,
+       "countOff": 0,
+       "arc": 1,
+       "d": 1.5552000000000001,
+       "flat": 1,
+       "noBeads": 1
+      },
+      "5.5": {
+       "ys": [
+        0
+       ],
+       "count": 6,
+       "countOff": 0,
+       "arc": 1,
+       "d": 2.376,
+       "flat": 1,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "원 밖 3줄",
+     "byWidth": {
+      "3.6": {
+       "love": 1,
+       "arc": 1,
+       "d": 1.152,
+       "flat": 1
+      },
+      "5.5": {
+       "love": 1,
+       "arc": 1,
+       "d": 1.7599999999999998,
+       "flat": 1
+      }
+     }
+    }
+   }
   },
-  "wall": 1,
-  "metal": "WG",
-  "pave": {
-   "semi": "타원에만",
-   "full": "타원 + 밴드"
+  {
+   "id": "CL",
+   "name": "클래싱",
+   "sub": "스터드와 구슬",
+   "widths": [
+    5
+   ],
+   "widthLabels": null,
+   "defaultWidth": 5,
+   "wall": 1.7,
+   "metal": "PG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "구슬에만",
+     "byWidth": {
+      "5": {
+       "clFill": "bead",
+       "d": 0.55,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "구슬 + 스터드",
+     "byWidth": {
+      "5": {
+       "clFill": "all",
+       "d": 0.55,
+       "noBeads": 1
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "SP",
+   "name": "세르펜토",
+   "sub": "맞물린 사다리꼴 비늘",
+   "widths": [
+    4
+   ],
+   "widthLabels": null,
+   "defaultWidth": 4,
+   "wall": 1.7,
+   "metal": "YG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "비늘 하나 걸러",
+     "byWidth": {
+      "4": {
+       "spFill": 1,
+       "alt": 1,
+       "d": 0.6,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "모든 비늘",
+     "byWidth": {
+      "4": {
+       "spFill": 1,
+       "d": 0.6,
+       "noBeads": 1
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "I",
+   "name": "아이스블록",
+   "sub": "작은 큐브 격자",
+   "widths": [
+    3.5
+   ],
+   "widthLabels": null,
+   "defaultWidth": 3.5,
+   "wall": 1.6,
+   "metal": "WG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "큐브 하나 걸러",
+     "byWidth": {
+      "3.5": {
+       "icFill": 1,
+       "alt": 1,
+       "d": 0.55,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "모든 큐브",
+     "byWidth": {
+      "3.5": {
+       "icFill": 1,
+       "d": 0.55,
+       "noBeads": 1
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "BB",
+   "name": "베르베로",
+   "sub": "네 줄이 하나로",
+   "widths": [
+    5
+   ],
+   "widthLabels": null,
+   "defaultWidth": 5,
+   "wall": 1.6,
+   "metal": "YG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "한 줄만",
+     "byWidth": {
+      "5": {
+       "ys": [
+        -0.125
+       ],
+       "arc": 0.5,
+       "d": 0.875
+      }
+     }
+    },
+    "full": {
+     "label": "두 줄",
+     "byWidth": {
+      "5": {
+       "ys": [
+        -0.375,
+        0.125
+       ],
+       "arc": 1,
+       "d": 0.875
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "MG",
+   "name": "그레인즈",
+   "sub": "심플링 위아래 구슬 테두리",
+   "widths": [
+    3,
+    4
+   ],
+   "widthLabels": null,
+   "defaultWidth": 3,
+   "wall": 1.6,
+   "metal": "WG",
+   "diy": false,
+   "rimColor": true,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "가운데 다이아 한 알",
+     "byWidth": {
+      "3": {
+       "ys": [
+        0
+       ],
+       "count": 1,
+       "countOff": 0.25,
+       "arc": 1,
+       "d": 1.6500000000000001,
+       "flat": 1,
+       "noBeads": 1
+      },
+      "4": {
+       "ys": [
+        0
+       ],
+       "count": 1,
+       "countOff": 0.25,
+       "arc": 1,
+       "d": 2.2,
+       "flat": 1,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "큰 다이아 한 줄",
+     "byWidth": {
+      "3": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 1.6500000000000001,
+       "flat": 1,
+       "gap": 1.12
+      },
+      "4": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 2.2,
+       "flat": 1,
+       "gap": 1.12
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "PE",
+   "name": "뻬를라",
+   "sub": "동글동글 구슬",
+   "widths": [
+    2.5,
+    3.5
+   ],
+   "widthLabels": null,
+   "defaultWidth": 2.5,
+   "wall": 1.5,
+   "metal": "YG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "구슬 사이사이",
+     "byWidth": {
+      "2.5": {
+       "ys": [
+        0
+       ],
+       "grid": 2.5,
+       "skip": 3,
+       "arc": 1,
+       "d": 1.55,
+       "flat": 1
+      },
+      "3.5": {
+       "ys": [
+        0
+       ],
+       "grid": 3.5,
+       "skip": 3,
+       "arc": 1,
+       "d": 2.17,
+       "flat": 1
+      }
+     }
+    },
+    "full": {
+     "label": "모든 구슬",
+     "byWidth": {
+      "2.5": {
+       "ys": [
+        0
+       ],
+       "grid": 2.5,
+       "arc": 1,
+       "d": 1.55,
+       "flat": 1
+      },
+      "3.5": {
+       "ys": [
+        0
+       ],
+       "grid": 3.5,
+       "arc": 1,
+       "d": 2.17,
+       "flat": 1
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "CC",
+   "name": "코코퀼트",
+   "sub": "퀼팅 마름모",
+   "widths": [
+    3,
+    5.5
+   ],
+   "widthLabels": {
+    "3": "미니",
+    "5.5": "스몰"
+   },
+   "defaultWidth": 5.5,
+   "wall": 1.6,
+   "metal": "YG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "앞쪽 몇 칸",
+     "byWidth": {
+      "3": {
+       "quilt": 1,
+       "front": 1,
+       "d": 0.6000000000000001,
+       "noBeads": 1
+      },
+      "5.5": {
+       "quilt": 1,
+       "front": 1,
+       "d": 1,
+       "noBeads": 1
+      }
+     }
+    },
+    "alt": {
+     "label": "한 칸 걸러",
+     "byWidth": {
+      "3": {
+       "quilt": 1,
+       "alt": 1,
+       "d": 0.6000000000000001,
+       "noBeads": 1
+      },
+      "5.5": {
+       "quilt": 1,
+       "alt": 1,
+       "d": 1,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "모든 칸",
+     "byWidth": {
+      "3": {
+       "quilt": 1,
+       "d": 0.6000000000000001,
+       "noBeads": 1
+      },
+      "5.5": {
+       "quilt": 1,
+       "d": 1,
+       "noBeads": 1
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "SOL",
+   "name": "나만의 솔리테어",
+   "sub": "컷·캐럿·알 직접",
+   "widths": [
+    1.6,
+    2,
+    2.5
+   ],
+   "widthLabels": null,
+   "defaultWidth": 2,
+   "wall": 1.6,
+   "metal": "WG",
+   "diy": true,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "세미 파베",
+     "byWidth": {
+      "2": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 1.5
+      },
+      "1.6": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 1.2000000000000002
+      },
+      "2.5": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 1.875
+      }
+     }
+    },
+    "full": {
+     "label": "풀 파베",
+     "byWidth": {
+      "2": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 1.5
+      },
+      "1.6": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 1.2000000000000002
+      },
+      "2.5": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 1.875
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "S",
+   "name": "민짜반지",
+   "sub": "장식 없는 한 줄",
+   "widths": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "widthLabels": null,
+   "defaultWidth": 3,
+   "wall": 1.8,
+   "metal": "YG",
+   "diy": true,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "하프 이터니티",
+     "byWidth": {
+      "2": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 1.4
+      },
+      "3": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 2.0999999999999996
+      },
+      "4": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 2.2
+      },
+      "5": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 2.2
+      },
+      "6": {
+       "ys": [
+        0
+       ],
+       "arc": 0.5,
+       "d": 2.2
+      }
+     }
+    },
+    "full": {
+     "label": "풀 이터니티",
+     "byWidth": {
+      "2": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 1.4
+      },
+      "3": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 2.0999999999999996
+      },
+      "4": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 2.2
+      },
+      "5": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 2.2
+      },
+      "6": {
+       "ys": [
+        0
+       ],
+       "arc": 1,
+       "d": 2.2
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "MV",
+   "name": "무빙원",
+   "sub": "타원 틀 안에서 움직이는 알",
+   "widths": [
+    4.6,
+    5.8
+   ],
+   "widthLabels": {
+    "4.6": "스몰 (타원 10.3mm)",
+    "5.8": "라지 (타원 13.9mm)"
+   },
+   "defaultWidth": 4.6,
+   "wall": 1,
+   "metal": "WG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": false,
+   "gem": null,
+   "pave": {
+    "semi": {
+     "label": "타원에만",
+     "byWidth": {
+      "4.6": {
+       "mv": 1,
+       "front": 1,
+       "d": 0.75,
+       "noBeads": 1
+      },
+      "5.8": {
+       "mv": 1,
+       "front": 1,
+       "d": 0.75,
+       "noBeads": 1
+      }
+     }
+    },
+    "full": {
+     "label": "타원 + 밴드",
+     "byWidth": {
+      "4.6": {
+       "mv": 1,
+       "d": 0.75,
+       "noBeads": 1
+      },
+      "5.8": {
+       "mv": 1,
+       "d": 0.75,
+       "noBeads": 1
+      }
+     }
+    }
+   }
+  },
+  {
+   "id": "ND",
+   "name": "누디",
+   "sub": "동글게 깎은 큰 컬러 알",
+   "widths": [
+    3,
+    4
+   ],
+   "widthLabels": {
+    "3": "쁘띠",
+    "4": "클래식"
+   },
+   "defaultWidth": 4,
+   "wall": 2,
+   "metal": "PG",
+   "diy": false,
+   "rimColor": false,
+   "gemPick": true,
+   "gem": "topaz",
+   "pave": {
+    "full": {
+     "label": "풀 파베 (밴드 전체)",
+     "byWidth": {
+      "3": {
+       "ys": [
+        -0.35625,
+        -0.11875000000000001,
+        0.11875000000000001,
+        0.35625
+       ],
+       "arc": 1,
+       "d": 0.85,
+       "gap": 0.96,
+       "flat": 1,
+       "lift": 0.01,
+       "noBeads": 1
+      },
+      "4": {
+       "ys": [
+        -0.4010416666666667,
+        -0.240625,
+        -0.08020833333333331,
+        0.08020833333333337,
+        0.240625,
+        0.40104166666666663
+       ],
+       "arc": 1,
+       "d": 0.85,
+       "gap": 0.96,
+       "flat": 1,
+       "lift": 0.01,
+       "noBeads": 1
+      }
+     }
+    }
+   }
+  }
+ ],
+ "metals": {
+  "PG": 15907234,
+  "YG": 15778670,
+  "WG": 15659251
+ },
+ "gems": {
+  "dia": {
+   "n": "다이아",
+   "d": 3.52,
+   "c": 16777215,
+   "e": 3.2
+  },
+  "lab": {
+   "n": "랩다이아",
+   "d": 3.52,
+   "c": 16777215,
+   "e": 3.2
+  },
+  "sap": {
+   "n": "사파이어",
+   "d": 4,
+   "c": 1916062,
+   "e": 2.2
+  },
+  "ruby": {
+   "n": "루비",
+   "d": 4,
+   "c": 10687021,
+   "e": 2.2
+  },
+  "emer": {
+   "n": "에메랄드",
+   "d": 2.72,
+   "c": 1014341,
+   "e": 2
+  },
+  "gar": {
+   "n": "가넷",
+   "d": 4,
+   "c": 6032148,
+   "e": 2
+  },
+  "opal": {
+   "n": "오팔",
+   "d": 2.1,
+   "c": 16777215,
+   "e": 1.2
+  },
+  "topaz": {
+   "n": "블루토파즈",
+   "d": 3.53,
+   "c": 6272742,
+   "e": 2.4
+  },
+  "amet": {
+   "n": "자수정",
+   "d": 2.65,
+   "c": 9064373,
+   "e": 2.4
+  },
+  "pras": {
+   "n": "프라시올라이트",
+   "d": 2.65,
+   "c": 11128714,
+   "e": 2.4
+  },
+  "citr": {
+   "n": "시트린",
+   "d": 2.65,
+   "c": 15246138,
+   "e": 2.4
+  },
+  "rose": {
+   "n": "로즈쿼츠",
+   "d": 2.65,
+   "c": 15774914,
+   "e": 2.2
   }
  },
- {
-  "id": "ND",
-  "cat": "패피",
-  "name": "누디",
-  "sub": "네모 상자 위 동글게 깎은 컬러 알",
-  "ws": [
-   3,
-   4
-  ],
-  "wl": {
-   "3": "쁘띠",
-   "4": "클래식"
+ "nudoGems": [
+  "topaz",
+  "amet",
+  "pras",
+  "citr",
+  "rose",
+  "sap",
+  "gar"
+ ],
+ "cuts": {
+  "round": {
+   "name": "라운드",
+   "W": 6.5,
+   "L": 6.5
   },
-  "dw": 1,
-  "wall": 2,
-  "metal": "PG",
-  "gemPick": true,
-  "gem": "topaz",
-  "pave": {
-   "full": "밴드 파베"
+  "oval": {
+   "name": "오벌",
+   "W": 5.7,
+   "L": 7.7
+  },
+  "princess": {
+   "name": "프린세스",
+   "W": 5.5,
+   "L": 5.5
+  },
+  "cushion": {
+   "name": "쿠션",
+   "W": 5.6,
+   "L": 6
+  },
+  "emerald": {
+   "name": "에메랄드컷",
+   "W": 5,
+   "L": 7
+  },
+  "pear": {
+   "name": "페어",
+   "W": 5.5,
+   "L": 8.5
+  },
+  "marquise": {
+   "name": "마퀴즈",
+   "W": 5,
+   "L": 10
   }
  }
-]
+}

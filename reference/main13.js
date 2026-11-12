@@ -46,9 +46,13 @@ let HO=17.5, FD=(40+HO)/Math.PI;   // 호수 → 안쪽 둘레(40+호수 mm) →
 const METALS={PG:0xf2b9a2,YG:0xf0c36e,WG:0xeef0f3};
 /*SOL*/
 // 파베 알: 보석 전용 반사로 반짝이게
-const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.45,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.0,clippingPlanes:[clip]});
+const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.5,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.4,clippingPlanes:[clip]});
 // 파베 알 한 개: 브릴리언트처럼 테이블·크라운·파빌리온이 있는 깎인 모양
-const stoneGeo=new THREE.LatheGeometry([new THREE.Vector2(0.001,-0.7),new THREE.Vector2(1,0),new THREE.Vector2(1,0.05),new THREE.Vector2(0.58,0.3),new THREE.Vector2(0.001,0.3)],8);
+const stoneGeo=(()=>{const g0=new THREE.LatheGeometry([new THREE.Vector2(0.001,-0.75),new THREE.Vector2(1,0),new THREE.Vector2(1,0.06),new THREE.Vector2(0.84,0.2),new THREE.Vector2(0.48,0.34),new THREE.Vector2(0.001,0.34)],12).toNonIndexed();
+  // 면마다 밝고 어두움을 번갈아 칠해 다이아의 화살 무늬처럼 빛이 갈라지게 (흰 원판처럼 보이지 않게)
+  const pos=g0.attributes.position, col=[]; for(let t=0;t<pos.count;t+=3){const y=(pos.getY(t)+pos.getY(t+1)+pos.getY(t+2))/3, a=Math.atan2(pos.getZ(t)+pos.getZ(t+1)+pos.getZ(t+2),pos.getX(t)+pos.getX(t+1)+pos.getX(t+2)), k=Math.floor((a+Math.PI)/(Math.PI/6))%2;
+    const c=y>0.3?0.62:y>0.1?(k?1.0:0.3):y>0?(k?0.45:0.85):(k?0.22:0.55); for(let n=0;n<3;n++)col.push(c,c,c);}
+  g0.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g0.computeVertexNormals(); return g0;})();
 const beadGeo=new THREE.SphereGeometry(1,8,6);   // 알을 잡는 작은 금속 발
 const TAU=Math.PI*2, TW=new THREE.Color(), HK=7;
 const caps=(g,t,k,mat)=>{[-H/2,H/2].forEach(y=>{const r=new THREE.RingGeometry(1.0,1+t*k,128);r.rotateX(Math.PI/2);const c=new THREE.Mesh(r,mat);c.position.y=y;g.add(c);});
@@ -71,6 +75,12 @@ function makeRing(style,wall,metal,W){
   const mat=M(METALS[metal]||METALS.YG,1,0.16); mat.envMapIntensity=1.6;
   const one=(pat,rows=24,p=0.55,k=0.33)=>{tR=t*(style==='S'||style==='SOL'?1.1:1);pe=p;g.add(band(-H/2,H,tR,pat,mat,rows,p));caps(g,t,k,mat);};
   if(style==='S'||style==='SOL'){ one(()=>0); }
+  else if(style==='MG'){           // 밀그레인: 민짜 밴드 + 위아래 끝에 아주 작은 구슬 테두리(색 따로)
+    const rh=H*Math.min(0.55/W,0.2), tt=t*1.1, rm=M(METALS[RMETAL==='same'?metal:RMETAL]||METALS.WG,1,0.18); rm.envMapIntensity=1.6;
+    g.add(band(-H/2+rh,H-2*rh,tt,()=>0,mat,24,0.5));
+    const n=Math.round(TAU*R*1.1/0.5), bp=(th,v)=>{const u=th/TAU*n, fu=u-Math.floor(u)-0.5; return 0.03*(Math.sqrt(Math.max(0,1-4*fu*fu))-0.7);}; bp.seg=n*8;
+    g.add(band(-H/2,rh,tt*0.92,bp,rm,8,0.6)); g.add(band(H/2-rh,rh,tt*0.92,bp,rm,8,0.6));
+    tR=tt; pe=0.5; caps(g,t,0.33,rm); }
   else if(style==='Q'){            // 콰트레: 질감 다른 띠 2줄(4mm) 또는 4줄(7mm)
     const parts=[[0xf0c36e,1,0.16,(th,v)=>0.05*Math.pow(Math.abs(Math.sin(th*36+v*5.5)),0.6)],[0x3b2a22,0.6,0.32,()=>0],
      [0xf0b49c,1,0.22,th=>0.03*(Math.sin(th*160)>0?1:0)],[0xeef0f3,1,0.12,(th,v)=>0.035*Math.abs(Math.sin(th*40+v*3))*Math.abs(Math.sin(th*40-v*3))]];
@@ -80,10 +90,12 @@ function makeRing(style,wall,metal,W){
     for(let k=1;k<nb;k++){const gg=new THREE.Mesh(new THREE.CylinderGeometry(1+t*0.55,1+t*0.55,0.03,128,1,true),grooveM);gg.position.y=-H/2+k*H/nb;g.add(gg);}
     caps(g,t,0.32,M(0xd9b46a,1,0.3));
   } else if(style==='B'){          // 비제로투: 나선 테두리 두 줄 + 매끈한 가운데
-    const E=0.24*H; tR=t*1.05;
+    // 미니(폭 < 6mm) = 가운데 통통한 띠 1줄, 라지 = 2줄. 테두리 폭은 mm로 같게
+    const nb=W<6?1:2, E=H*Math.min(0.24,1.15/W); tR=t*1.05; g.userData.bz={nb,E:E/H};
     g.add(band(-H/2,E,t*1.5,(th,v)=>0.11*Math.pow(Math.abs(Math.sin(th*55+v*Math.PI*1.2)),0.35),mat));
     g.add(band(H/2-E,E,t*1.5,(th,v)=>0.11*Math.pow(Math.abs(Math.sin(th*55-v*Math.PI*1.2)),0.35),mat));
-    g.add(band(-H/2+E,H-2*E,tR,()=>0,mat)); caps(g,t,0.32,mat);
+    const ch=(H-2*E)/nb; for(let k=0;k<nb;k++) g.add(band(-H/2+E+k*ch+(nb>1?0.006:0),ch-(nb>1?0.012:0),tR,()=>0,mat));
+    caps(g,t,0.32,mat);
   } else if(style==='L'){          // 러브볼트: 납작한 밴드 + 나사 6개(대각 홈)
     const rs=0.3*W, ns=6;
     one((th,v)=>{const c=Math.round(wrap(th)/TAU*ns-0.0)%ns, dth=wrap(th-c/ns*TAU+Math.PI)-Math.PI, x=dth*R, y=(v-0.5)*W, d=Math.hypot(x,y);
@@ -136,21 +148,24 @@ function layoutStones(g,cfg,yk){
   const {tR,pe,W}=g.userData, R=FD/2, st=g.userData.stones, m=new THREE.Matrix4(), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0);
   const d=cfg.d, rowsN=cfg.ys?cfg.ys.length:Math.max(1,Math.floor(W*0.9/(d*1.12)));
   const ys=cfg.ys||Array.from({length:rowsN},(_,i)=>rowsN===1?0:(i/(rowsN-1)-0.5)*(W*0.9-d)/W);
-  const sz=(d/2)/R, bead=st.userData.beads; let c=0, b=0;
+  let sz=(d/2)/R; const bead=st.userData.beads; let c=0, b=0;
   const base=st.userData.base||(st.userData.base=new Float32Array(2700));
-  const put=(th,f,rr,ri,hp)=>{if(c>=900)return; const dir=new THREE.Vector3(Math.cos(th),0,Math.sin(th)); q.setFromUnitVectors(up,dir);
+  const put=(th,f,rr,ri,hp)=>{if(c>=900)return; const dir=new THREE.Vector3(Math.cos(th),0,Math.sin(th)); q.setFromUnitVectors(up,dir).multiply(new THREE.Quaternion().setFromAxisAngle(up,(c*2.399)%TAU));
       m.compose(dir.clone().multiplyScalar(rr).setY(f*H*yk),q,new THREE.Vector3(sz,sz,sz)); st.setMatrixAt(c,m);
       const col=cfg.colors?new THREE.Color(cfg.colors[c%cfg.colors.length]):new THREE.Color(1,1,1); base[c*3]=col.r;base[c*3+1]=col.g;base[c*3+2]=col.b;
       const h=0.45+0.75*(Math.abs(Math.sin(c*12.9898+ri*78.233)*43758.5453)%1); st.setColorAt(c++,col.multiplyScalar(cfg.colors?Math.min(1,h+0.3):h));
       const bsz=sz*0.2; [-1,1].forEach(sg=>{if(b>=1800||cfg.noBeads)return; const a=th+hp, dv=new THREE.Vector3(Math.cos(a),0,Math.sin(a)); m.compose(dv.multiplyScalar(rr+sz*0.12).setY(f*H*yk+sg*sz*0.55),q,new THREE.Vector3(bsz,bsz,bsz)); bead.setMatrixAt(b++,m);});};
   if(cfg.quilt){ // 코코퀼트: 퀼팅 선(금)은 남기고 마름모 칸 안에만 알
     const n=g.userData.cc.n, u=W/2, lift=(v)=>1+tR*(0.3+0.7*Math.pow(Math.sin(Math.PI*v),pe))+0.012-sz*0.1;
-    const cells=[]; for(let k=0;k<n;k+=2){cells.push([k,1]); if(!cfg.one){cells.push([k+1,0],[k+1,2]);}}
-    cells.forEach(([sc,yc],ci)=>{
-      if(cfg.one){const v=yc/2; put(sc/n*TAU,v-0.5,lift(v)+0.01,ci,0.02); return;}
-      const st=d*0.98/u, m=0.16/u+st*0.4;
-      for(let dy=-1;dy<=1;dy+=st)for(let ds=-1;ds<=1;ds+=st){const y=yc+dy, s=sc+ds+((Math.round((dy+1)/st))%2?st/2:0);
-        if(y<0.12||y>1.88)continue; if(Math.abs(s-sc)+Math.abs(y-yc)>1-m)continue; const v=y/2; put(wrap(s/n*TAU),v-0.5,lift(v),ci,0.02);}});
+    // 실물처럼: 칸마다 가운데 큰 알 하나 + 둘레를 작은 알로 빽빽하게. front = 앞쪽 몇 칸, alt = 한 칸 걸러, 기본 = 모든 칸
+    const cells=[]; for(let k=0;k<n;k+=2){cells.push([k,1,(k/2)%2]); cells.push([k+1,0,((k/2)+1)%2],[k+1,2,((k/2)+1)%2]);}
+    const big=d*1.75, sm=d*0.8, rc=(big/2+sm*0.4)/u;
+    cells.forEach(([sc,yc,par],ci)=>{
+      const th0=sc/n*TAU; if(cfg.front&&Math.abs(wrap(th0-Math.PI/2+Math.PI)-Math.PI)>0.75)return; if(cfg.alt&&par)return;
+      if(yc===1){sz=(big/2)/R; put(wrap(th0),0,lift(0.5)+0.012,ci,0.02);}
+      sz=(sm/2)/R; const st=sm*0.9/u, m=0.14/u+st*0.35;
+      for(let dy=-1;dy<=1;dy+=st*0.88)for(let ds=-1;ds<=1;ds+=st){const y=yc+dy, s=sc+ds+((Math.round((dy+1)/(st*0.88)))%2?st/2:0);
+        if(y<0.12||y>1.88)continue; if(Math.abs(s-sc)+Math.abs(y-yc)>1-m)continue; if(yc===1&&Math.hypot(s-sc,(y-yc))<rc)continue; const v=y/2; put(wrap(s/n*TAU),v-0.5,lift(v),ci,0.02);}});
     ys.length=0;}
   if(cfg.mv){ const mv=g.userData.mv, Rr=R+mv.r, rr=(Rr+mv.r)/R-sz*0.2, per=Math.PI*(3*(mv.a+mv.b)-Math.sqrt((3*mv.a+mv.b)*(mv.a+3*mv.b))), n=Math.floor(per/(d*1.05));
     for(let k=0;k<n;k++){const f=k/n*TAU; put(Math.PI/2+mv.a*Math.cos(f)/Rr, mv.b*Math.sin(f)/W, rr, k, 0.02);}
@@ -160,6 +175,29 @@ function layoutStones(g,cfg,yk){
     for(let k=0;k<sc.n;k++){ if(cfg.alt&&k%2)continue;
       [0.22,0.4,0.6,0.78].forEach((v,ri)=>{const a=spB(sc,k,v), b=spB(sc,k+1,v), w=(b-a)*sc.p-0.5, m=Math.max(1,Math.floor(w/(d*1.05)));
         for(let i=0;i<m;i++){const u=a+(b-a)*(0.5+(i-(m-1)/2)*(d*1.05)/((b-a)*sc.p)); put(u/sc.n*TAU,v-0.5,1+tR*(0.3+0.7*Math.pow(Math.sin(Math.PI*v),pe))+0.03-sz*0.1,ri,0.02);}});}
+    ys.length=0;}
+  if(cfg.spFill){const sc=g.userData.sp; cfg={...cfg,arc:1,fill:{test:(th,v)=>{if(v<0.1||v>0.9)return false; const q=spAt(sc,th,v); return q.dmm>0.32&&!(cfg.alt&&q.k%2);},h:()=>0.03}};}
+  if(cfg.icFill){const n=Math.round(TAU*R/(W/2)); cfg={...cfg,arc:1,fill:{test:(th,v)=>{const u=wrap(th)/TAU*n, fu=u-Math.floor(u), fv=(v*2)%1, m=0.2/(W/2); if(cfg.alt&&(Math.floor(u)+Math.floor(v*2))%2)return false; return fu>m&&fu<1-m&&fv>m&&fv<1-m&&v>0.04&&v<0.96;},h:()=>0.025}};}
+  if(cfg.clFill){const p=W*0.95, n=2*Math.round(TAU*R/p/2); cfg={...cfg,arc:1,fill:{test:(th,v)=>{const u=wrap(th)/TAU*n, i=Math.floor(u), fu=u-i-0.5, fv=v-0.5; if(Math.abs(fv)>0.42)return false;
+      return i%2? (cfg.clFill==='all'&&Math.max(Math.abs(fu),Math.abs(fv))<0.33) : fu*fu+fv*fv<0.13;},
+    h:(th,v)=>{const u=wrap(th)/TAU*n, i=Math.floor(u), fu=u-i-0.5, fv=v-0.5; return i%2? 0.13*Math.max(0,1-2.6*Math.max(Math.abs(fu),Math.abs(fv)))-0.02 : 0.11*Math.sqrt(Math.max(0,1-6*(fu*fu+fv*fv)))-0.02;}}};}
+  if(cfg.fill){ // 영역 채우기: 작은 알을 벌집처럼 빽빽하게, 칸(영역) 안에만. test(th,v)=칸 안인지, h(th,v)=그 자리 표면 높이
+    const {test,h}=cfg.fill, dy=d*0.88, nyr=Math.floor(W/dy);
+    for(let j=0;j<=nyr;j++){const y=-W/2+(W-nyr*dy)/2+j*dy, v=y/W+0.5, nx=Math.floor(TAU*R/(d*1.0));
+      for(let k=0;k<nx;k++){const th=(k+(j%2)*0.5)/nx*TAU; if(cfg.arc<1){const dd=Math.abs(wrap(th-Math.PI/2+Math.PI)-Math.PI); if(dd>cfg.arc*Math.PI)continue;}
+        if(!test(th,v))continue; const e=Math.sin(Math.PI*v); put(th,v-0.5,1+tR*(0.3+0.7*Math.pow(e,pe))+h(th,v)*Math.pow(e,0.8)+0.012,j,0.02);}}
+    ys.length=0;}
+  if(cfg.bz){ // 비제로투: 엣지 = 튀어나온 양쪽 테두리 위에 한 줄씩, 풀 = 가운데 통통한 띠에 2줄
+    const {nb,E}=g.userData.bz, er=1+tR*(1.5/1.05)+0.07, cw=(1-2*E)/nb, rows=[];
+    if(cfg.bz!=='full') rows.push([-0.5+E/2,er,1.0],[0.5-E/2,er,1.0]);          // 엣지: 테두리 알은 1mm
+    if(cfg.bz!=='edge') for(let k=0;k<nb;k++) rows.push([-0.5+E+cw*(k+0.5),1+tR+0.01,d]);
+    rows.forEach(([f,rr,dd],ri)=>{sz=(dd/2)/R; const n=Math.floor(TAU*R*rr/(dd*1.05)); for(let k=0;k<n;k++) put((k+(ri%2)*0.5)/n*TAU,f,rr+sz*0.1,ri,0.02);});
+    ys.length=0;}
+  if(cfg.love){ // 러브볼트 풀 파베: 3줄로 꽉, 나사 원(금)은 비워 둠
+    const rs=0.3*W, ns=6, rr=1+tR+sz*0.25, n=Math.floor(TAU*R/(d*1.04));   // 알을 살짝 띄워 옆면 반짝임이 보이게
+    [-1,0,1].forEach((row,ri)=>{const y=row*W/3, v=y/W+0.5;
+      for(let k=0;k<n;k++){const th=(k+(ri%2)*0.5)/n*TAU, c=Math.round(th/TAU*ns)%ns, x=(wrap(th-c/ns*TAU+Math.PI)-Math.PI)*R;
+        if(Math.hypot(x,y)<rs+d*0.5)continue; put(th,v-0.5,rr,ri,Math.PI/n);}});
     ys.length=0;}
   if(cfg.hex){ // 베이비마이: 육각 셀 가운데에만 한 알씩 (무늬 식과 같은 격자)
     const rowsN=W<3.5?1:2, p=W/rowsN, n=Math.round(TAU*R/p), sy=W*(rowsN===1?1.6:1.15);
@@ -179,8 +217,8 @@ function layoutStones(g,cfg,yk){
   ys.forEach((f,ri)=>{const v=f+0.5, edge=cfg.flat?1:Math.sin(Math.PI*v), rr=1+tR*(0.3+0.7*Math.pow(edge,pe))+(cfg.lift||0)-sz*0.1;
     let ths=[];
     if(cfg.grid){const n=Math.round(TAU*R/cfg.grid); for(let k=0;k<n;k+=(cfg.skip||1)) ths.push((k+0.5+(cfg.gridOff||0))/n*TAU);}
-    else if(cfg.count){for(let k=0;k<cfg.count;k++) ths.push((k+0.5)/cfg.count*TAU);}
-    else {const n=Math.floor(TAU*R*rr/(d*1.08)); for(let k=0;k<n;k++) ths.push((k+(ri%2)*0.5)/n*TAU);}
+    else if(cfg.count){for(let k=0;k<cfg.count;k++) ths.push((k+(cfg.countOff??0.5))/cfg.count*TAU);}
+    else {const n=Math.floor(TAU*R*rr/(d*(cfg.gap||1.08))); for(let k=0;k<n;k++) ths.push((k+(ri%2)*0.5)/n*TAU);}
     const hp=ths.length>1?(ths[1]-ths[0])/2:0.1, bsz=sz*0.2;
     ths.forEach(th=>{ if(cfg.arc<1){const dd=Math.abs(wrap(th-Math.PI/2+Math.PI)-Math.PI); if(dd>cfg.arc*Math.PI) return;}
       put(th,f,rr,ri,hp);});});
@@ -192,39 +230,39 @@ function dispose(g){if(!g)return; scene.remove(g); scene.remove(g.userData.stone
 // ---- 카탈로그. 이름은 실제 제품과 다르게 바꾼 자체 이름, 폭은 대략값
 const SEMI='세미 파베', FULL='풀 파베';
 const CAT=[
- {id:'B',cat:'국민',name:'비제로투',sub:'나선 테두리',ws:[4.8],wall:1.8,metal:'PG',
-  pave:{semi:[SEMI,W=>({ys:[0],arc:0.5,d:1.0,flat:1})],full:[FULL,W=>({ys:[0],arc:1,d:1.0,flat:1})]}},
+ {id:'B',cat:'국민',name:'비제로투',sub:'나선 테두리',ws:[4.8,7.5],wl:{4.8:'미니 (가운데 1줄)',7.5:'라지 (가운데 2줄)'},wall:1.8,metal:'PG',
+  pave:{semi:['스파이럴 파베',W=>({bz:'edge',d:1.0,noBeads:1})],full:['밴드 파베',W=>({bz:'full',d:Math.min(1.6,(W-2.3)/(W<6?1:2)*0.62),noBeads:1})],both:['스파이럴+밴드 파베',W=>({bz:'both',d:Math.min(1.6,(W-2.3)/(W<6?1:2)*0.62),noBeads:1})]}},
  {id:'Q',cat:'대세',name:'콰트레',sub:'네 가지 질감',ws:[4,7],wl:{4:'4mm · 두 줄',7:'7mm · 네 줄'},dw:1,wall:1.8,metal:null,
-  pave:{semi:[SEMI,W=>{const nb=W<=4.5?2:4;return {ys:[(nb-0.5)/nb-0.5],arc:0.5,d:W/nb*0.62,flat:1}}],full:['파베 한 줄',W=>{const nb=W<=4.5?2:4;return {ys:[(nb-0.5)/nb-0.5],arc:1,d:W/nb*0.62,flat:1}}]}},
+  pave:{semi:['파베 한 줄',W=>{const nb=W<=4.5?2:4;return {ys:[(nb-0.5)/nb-0.5],arc:1,d:W/nb*0.62,flat:1}}],full:['모든 줄 파베',W=>{const nb=W<=4.5?2:4;return {ys:Array.from({length:nb},(_,k)=>(k+0.5)/nb-0.5),arc:1,d:W/nb*0.62,flat:1,noBeads:1}}]}},
  {id:'L',cat:'국민',name:'러브볼트',sub:'나사 여섯 개',ws:[3.6,5.5],dw:1,wall:1.9,metal:'YG',
-  pave:{semi:['알 6개',W=>({ys:[0],count:6,arc:1,d:W*0.34,flat:1})],full:[FULL,W=>({arc:1,d:Math.min(1.15,W/3),flat:1})]}},
+  pave:{semi:['나사 원 안에 6알',W=>({ys:[0],count:6,countOff:0,arc:1,d:W*0.3*2*0.72,flat:1,noBeads:1})],full:['원 밖 3줄',W=>({love:1,arc:1,d:W/3*0.96,flat:1})]}},
  {id:'CL',cat:'대세',name:'클래싱',sub:'스터드와 구슬',ws:[5],wall:1.7,metal:'PG',
-  pave:{semi:['구슬에만',W=>({ys:[0],grid:W*0.95,skip:2,arc:1,d:W*0.45,flat:1,lift:0.08})],full:[FULL,W=>({ys:[-0.44,0.44],arc:1,d:W*0.13,flat:1})]}},
+  pave:{semi:['구슬에만',W=>({clFill:'bead',d:0.55,noBeads:1})],full:['구슬 + 스터드',W=>({clFill:'all',d:0.55,noBeads:1})]}},
  {id:'SP',cat:'대세',name:'세르펜토',sub:'맞물린 사다리꼴 비늘',ws:[4],wall:1.7,metal:'YG',
-  pave:{semi:['비늘 하나 걸러',W=>({scales:1,alt:1,d:0.75,noBeads:1})],full:['모든 비늘',W=>({scales:1,d:0.75,noBeads:1})]}},
+  pave:{semi:['비늘 하나 걸러',W=>({spFill:1,alt:1,d:0.6,noBeads:1})],full:['모든 비늘',W=>({spFill:1,d:0.6,noBeads:1})]}},
  {id:'I',cat:'패피',name:'아이스블록',sub:'작은 큐브 격자',ws:[3.5],wall:1.6,metal:'WG',
-  pave:{semi:[SEMI,W=>({ys:[-0.25,0.25],grid:W/2,arc:0.5,d:W/2*0.6,flat:1})],full:[FULL,W=>({ys:[-0.25,0.25],grid:W/2,arc:1,d:W/2*0.6,flat:1})]}},
+  pave:{semi:['큐브 하나 걸러',W=>({icFill:1,alt:1,d:0.55,noBeads:1})],full:['모든 큐브',W=>({icFill:1,d:0.55,noBeads:1})]}},
  {id:'BB',cat:'패피',name:'베르베로',sub:'네 줄이 하나로',ws:[5],wall:1.6,metal:'YG',
   pave:{semi:['한 줄만',W=>({ys:[-0.125],arc:0.5,d:W/4*0.7})],full:['두 줄',W=>({ys:[-0.375,0.125],arc:1,d:W/4*0.7})]}},
- {id:'H',cat:'국민',name:'베이비마이',sub:'벌집 셀',ws:[2.5,4.5],dw:1,wall:1.4,metal:'PG',
-  pave:{semi:['칸 하나 걸러',W=>({hex:1,alt:1,d:W<3.5?0.72:0.64,noBeads:1})],full:['모든 칸',W=>({hex:1,d:W<3.5?0.72:0.64,noBeads:1})]}},
+ {id:'MG',cat:'오리지널',name:'그레인즈',sub:'심플링 위아래 구슬 테두리',ws:[3,4],dw:0,wall:1.6,metal:'WG',rim:true,
+  pave:{semi:['가운데 다이아 한 알',W=>({ys:[0],count:1,countOff:0.25,arc:1,d:W*0.55,flat:1,noBeads:1})],full:['큰 다이아 한 줄',W=>({ys:[0],arc:1,d:W*0.55,flat:1,gap:1.12})]}},
  {id:'PE',cat:'국민',name:'뻬를라',sub:'동글동글 구슬',ws:[2.5,3.5],wall:1.5,metal:'YG',
   pave:{semi:['구슬 사이사이',W=>({ys:[0],grid:W,skip:3,arc:1,d:W*0.62,flat:1})],full:['모든 구슬',W=>({ys:[0],grid:W,arc:1,d:W*0.62,flat:1})]}},
  {id:'CC',cat:'국민',name:'코코퀼트',sub:'퀼팅 마름모',ws:[3,5.5],wl:{3:'미니',5.5:'스몰'},dw:1,wall:1.6,metal:'YG',
-  pave:{semi:['마름모마다 한 알',W=>({quilt:1,one:1,d:W*0.44,noBeads:1})],full:['마름모 가득',W=>({quilt:1,d:Math.min(1.0,W*0.22),noBeads:1})]}},
+  pave:{semi:['앞쪽 몇 칸',W=>({quilt:1,front:1,d:Math.min(1.0,W*0.2),noBeads:1})],alt:['한 칸 걸러',W=>({quilt:1,alt:1,d:Math.min(1.0,W*0.2),noBeads:1})],full:['모든 칸',W=>({quilt:1,d:Math.min(1.0,W*0.2),noBeads:1})]}},
  {id:'SOL',cat:'오리지널',name:'나만의 솔리테어',sub:'컷·캐럿·알 직접',ws:[1.6,2,2.5],dw:1,wall:1.6,metal:'WG',diy:true,
   pave:{semi:[SEMI,W=>({ys:[0],arc:0.5,d:W*0.75})],full:[FULL,W=>({ys:[0],arc:1,d:W*0.75})]}},
  {id:'S',cat:'오리지널',name:'민짜반지',sub:'장식 없는 한 줄',ws:[2,3,4,5,6],dw:1,wall:1.8,metal:'YG',diy:true,
   pave:{semi:['하프 이터니티',W=>({ys:[0],arc:0.5,d:Math.min(W*0.7,2.2)})],full:['풀 이터니티',W=>({ys:[0],arc:1,d:Math.min(W*0.7,2.2)})]}},
  {id:'MV',cat:'대세',name:'무빙원',sub:'타원 틀 안에서 움직이는 알',ws:[4.6,5.8],wl:{4.6:'스몰 (타원 10.3mm)',5.8:'라지 (타원 13.9mm)'},wall:1.0,metal:'WG',
   pave:{semi:['타원에만',W=>({mv:1,front:1,d:0.75,noBeads:1})],full:['타원 + 밴드',W=>({mv:1,d:0.75,noBeads:1})]}},
- {id:'ND',cat:'패피',name:'누디',sub:'네모 상자 위 동글게 깎은 컬러 알',ws:[3,4],wl:{3:'쁘띠',4:'클래식'},dw:1,wall:2.0,metal:'PG',gemPick:true,gem:'topaz',
-  pave:{full:['밴드 파베',W=>({ys:[0],arc:1,d:W*0.55})]}},
+ {id:'ND',cat:'패피',name:'누디',sub:'동글게 깎은 큰 컬러 알',ws:[3,4],wl:{3:'쁘띠',4:'클래식'},dw:1,wall:2.0,metal:'PG',gemPick:true,gem:'topaz',
+  pave:{full:['풀 파베 (밴드 전체)',W=>{const d=0.85, n=Math.max(2,Math.ceil((W-0.15)/(d*0.88))); return {ys:Array.from({length:n},(_,k)=>((k+0.5)/n-0.5)*(W-0.15)/W),arc:1,d,gap:0.96,flat:1,lift:0.01,noBeads:1};}]}},
 ];
 const TABS=['전체','대세','패피','국민','오리지널'];
 
 // 상태
-let GMETAL='same', CI=0, WMM=4.8, WALL=1.8, METAL='PG', PAVE='none', GW=0, GPAVE=false, MASK=null, pxmmNow=1, ring=null, ring2=null;
+let RMETAL='same', GMETAL='same', CI=0, WMM=4.8, WALL=1.8, METAL='PG', PAVE='none', GW=0, GPAVE=false, MASK=null, pxmmNow=1, ring=null, ring2=null;
 function ringWall(){const c=CAT[CI]; return c.diy?WALL:c.wall;}
 function rebuild(){dispose(ring);dispose(ring2);if(head){scene.remove(head);head=null;}
   const c=CAT[CI]; ring=makeRing(c.id,ringWall(),METAL,WMM);
@@ -260,6 +298,7 @@ function hideOcc(){occ.forEach(m=>m.visible=false);occJ.forEach(m=>m.visible=fal
 function dorsal(i){const s=new THREE.Vector3();
   for(let k=-2;k<=2;k++){const L=LMS[Math.max(0,Math.min(N-1,i+k))]; if(!L)continue; const a=V(L,5).sub(V(L,0)), b=V(L,17).sub(V(L,0)); s.add(a.cross(b).normalize());}
   const Lr=LMS[N-1], ref=V(Lr,5).sub(V(Lr,0)).cross(V(Lr,17).sub(V(Lr,0))); if(ref.z<0)s.negate(); return s.normalize();}
+let TILT=1.8; function tiltUp(d){const v=new THREE.Vector3(d.x*TILT,d.y*TILT,d.z); return v.normalize();}   // 손등 기울기를 TILT배로 키움
 function frameFor(axis,nrm,bl=0.4){ // 손등 방향(축에 수직) 구하고 회전 만들기
   const Y=nrm.clone().sub(axis.clone().multiplyScalar(nrm.dot(axis)));
   const camv=new THREE.Vector3(0,0,1).sub(axis.clone().multiplyScalar(axis.z));
@@ -273,7 +312,7 @@ function place(p){
   const [cx,cy,cz,dx,dy,dz,fr]=p;
   const axis=new THREE.Vector3(dx,-dy,-dz*DZK).normalize(), pos=new THREE.Vector3(cx,-cy,-cz);
   const frK=fr*FRK, pxmm=2*frK/FD; pxmmNow=pxmm; const Rin=frK, bandW=WMM*pxmm, W2=GW*pxmm, gap=0.2*pxmm;
-  const {qR,qH}=frameFor(axis,dorsal(cur));
+  const {qR,qH}=frameFor(axis,tiltUp(dorsal(cur)),0.1);   // 손이 돈 만큼보다 조금 더 돌려서 알의 옆면(크라운·발)이 보이게
   pos.add(new THREE.Vector3(1,0,0).applyQuaternion(qR).multiplyScalar(Rin*LSH));   // LSH: 반지를 손가락 옆 방향으로 살짝 옮김 (이 영상에서 왼쪽으로 치우쳐 보여서)
   setRing(ring,qR,pos,Rin,bandW,axis,0,paveCfg(),SQZ);
   if(ring2) setRing(ring2,qR,pos,Rin,W2,axis,bandW/2+gap+W2/2,GPAVE?{ys:[0],arc:1,d:GW*0.75}:null,SQZ);
@@ -311,7 +350,9 @@ function applyZoom(){const Z=2.6,bx=$('box'),k=bx.clientWidth/IW;
  if(!zoom){zw.style.transform='none';return}
  const tx=Math.min(0,Math.max(bx.clientWidth*(1-Z), bx.clientWidth/2-zc[0]*k*Z)), ty=Math.min(0,Math.max(bx.clientHeight*(1-Z), bx.clientHeight/2-zc[1]*k*Z));
  zw.style.transform=`translate(${tx}px,${ty}px) scale(${Z})`;}
-function show(i){cur=Math.max(typeof PMIN==='number'?PMIN:0,Math.min(N-1,Math.round(i)));img.src=F[cur];r.value=cur; const gt=document.getElementById('grabtxt'); if(gt)gt.textContent='▲ '+CAT[CI].name+' · 반지 고르기';
+// 접힌 시트 문구: 위쪽 꺾쇠 + '세르펜토 | 반지 설정 변경하기'
+function grabLabel(){const gt=document.getElementById('grabtxt'); if(!gt)return; gt.innerHTML='<svg class="chev" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 8.5 8 2.5l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span>'; gt.lastChild.textContent=CAT[CI].name+' | 반지 설정 변경하기';}
+function show(i){cur=Math.max(typeof PMIN==='number'?PMIN:0,Math.min(N-1,Math.round(i)));img.src=F[cur];r.value=cur; grabLabel();
   if(P[cur])zc=[P[cur][0],P[cur][1]]; place(P[cur]); renderer.render(scene,cam); composite(); shadow(); applyZoom();}
 
 // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐
@@ -375,9 +416,9 @@ function renderDetail(){const c=CAT[CI];
   $('dname').textContent=c.name; $('dsub').textContent=c.sub;
   $('g-metal').hidden=!c.metal; chips($('c-metal'),[['PG','로즈골드','#e9b49e'],['YG','옐로골드','#e8c06a'],['WG','화이트골드','#dfe2e6']],METAL,v=>METAL=v);
   $('g-w').hidden=c.ws.length<2; chips($('c-w'),c.ws.map(w=>[w,wl(c,w)]),WMM,v=>WMM=v);
-  chips($('c-pave'),[['none','없음'],...['semi','full'].filter(k=>c.pave[k]).map(k=>[k,c.pave[k][0]])],PAVE,v=>PAVE=v);
+  $('g-pave').hidden=!Object.keys(c.pave||{}).length; chips($('c-pave'),[['none','없음'],...['semi','alt','full','both'].filter(k=>c.pave[k]).map(k=>[k,c.pave[k][0]])],PAVE,v=>PAVE=v);
   $('g-th').hidden=!c.diy; chips($('c-th'),[[1.2,'얇게 1.2mm'],[1.8,'보통 1.8mm'],[2.6,'두껍게 2.6mm']],WALL,v=>WALL=v);
-  $('g-sol').hidden=!(c.id==='SOL'||c.gemPick); $('g-cut').hidden=$('g-ct').hidden=c.id!=='SOL';
+  $('g-sol').hidden=!(c.id==='SOL'||c.gemPick); $('g-cut').hidden=$('g-ct').hidden=c.id!=='SOL'; $('g-pr').hidden=c.id!=='SOL'||!SIX[CUT];
   if(c.gemPick){chips($('c-gem'),NUDO_GEMS.map(k=>[k,GEMS[k].n]),GEM,v=>GEM=v); $('solinfo').textContent='';}
   if(c.id==='SOL'){chips($('c-cut'),Object.entries(CUTS).map(([k,o])=>[k,o.n]),CUT,v=>CUT=v);
     $('g-pr').hidden=!SIX[CUT]; chips($('c-pr'),[[4,'4발'],[6,'6발']],PRONG,v=>PRONG=v);
@@ -385,6 +426,7 @@ function renderDetail(){const c=CAT[CI];
     chips($('c-gem'),Object.entries(GEMS).map(([k,o])=>[k,o.n]),GEM,v=>GEM=v); solInfo();}
   chips($('c-gw'),[[0,'없음'],[1,'1.0'],[1.5,'1.5'],[2,'2.0'],[2.5,'2.5'],[3,'3.0mm']],GW,v=>GW=v);
   $('c-gp').hidden=!GW; chips($('c-gp'),[[false,'매끈하게'],[true,'가드링 파베']],GPAVE,v=>GPAVE=v);
+  $('g-rim').hidden=!c.rim; if(c.rim)chips($('c-rim'),[['same','반지와 같은 색'],['PG','로즈골드','#e9b49e'],['YG','옐로골드','#e8c06a'],['WG','화이트골드','#dfe2e6']],RMETAL,v=>RMETAL=v);
   $('c-gm').hidden=!GW; chips($('c-gm'),[['same','반지와 같은 색'],['PG','로즈골드','#e9b49e'],['YG','옐로골드','#e8c06a'],['WG','화이트골드','#dfe2e6']],GMETAL,v=>GMETAL=v);}
 function pickRing(i){if(i===CI&&ring){updatePicked();return;} CI=i; const c=CAT[i]; WMM=c.ws[c.dw||0]; WALL=c.wall; METAL=c.metal; PAVE='none'; if(c.gem)GEM=c.gem; else if(c.id==='SOL'&&NUDO_GEMS.includes(GEM))GEM='dia';
   rebuild(); show(cur); updatePicked();}
@@ -416,11 +458,11 @@ st.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;s0=cur;st.setPoi
 st.addEventListener('pointermove',e=>{if(sx===null)return;const w=st.clientWidth||300;const dx=e.clientX-sx, dy=sy-e.clientY;show(s0+(Math.abs(dy)>Math.abs(dx)?dy:dx)/w*N*1.2)});
 st.addEventListener('pointerup',()=>{sx=null;resumeAt=performance.now()+1500});st.addEventListener('pointercancel',()=>{sx=null;resumeAt=performance.now()+1500});
 // 손 영상 자동 재생: 앞뒤로 계속 왕복 (초당 약 10장). 손으로 끌면 잠깐 멈췄다가 1.5초 뒤 다시 돎
-let playDir=-1, lastPlay=0, resumeAt=0; const PMIN=27, PMAX=N-1, AUTO=true;   // 손 영상 자동 왕복 재생, 끌면 잠깐 멈춤   // 정면에 가까운 구간만 재생 (옆으로 많이 돈 프레임은 반지가 떠 보여서 뺌)
+let playDir=-1, lastPlay=0, resumeAt=0; const PMIN=27, PMAX=N-1; let AUTO=true;   // 손 영상 자동 왕복 재생, 끌면 잠깐 멈춤   // 정면에 가까운 구간만 재생 (옆으로 많이 돈 프레임은 반지가 떠 보여서 뺌)
 // 바텀시트 접기/펴기: 손잡이를 누르거나 아래·위로 밀기
 const sheet=$('sheet'), bG=$('b-grab'); let gy=null;
 function setSheet(open){sheet.classList.toggle('collapsed',!open); bG.setAttribute('aria-expanded',String(open)); bG.setAttribute('aria-label',open?'반지 고르기 접기':'반지 고르기 펴기');
-  $('grabtxt').textContent='▲ '+CAT[CI].name+' · 반지 고르기'; requestAnimationFrame(()=>{applyZoom();show(cur);if(open&&!$('pList').hidden)renderWheelKeep();});}
+  grabLabel(); requestAnimationFrame(()=>{applyZoom();show(cur);if(open&&!$('pList').hidden)renderWheelKeep();});}
 bG.addEventListener('pointerdown',e=>{gy=e.clientY;bG.setPointerCapture(e.pointerId)});
 bG.addEventListener('pointerup',e=>{if(gy===null)return; const dy=e.clientY-gy; gy=null; const open=!sheet.classList.contains('collapsed');
   if(dy>30)setSheet(false); else if(dy<-30)setSheet(true); else setSheet(!open);});
@@ -445,3 +487,17 @@ requestAnimationFrame(twinkle);
 // 테스트용
 window.__show=show; window.__zoom=()=>bZ.click(); window.__pick=(id,o={})=>{pickRing(CAT.findIndex(c=>c.id===id)); Object.assign(window.__st,o); ({WMM,WALL,METAL,PAVE,GW,GPAVE,CUT,CT,GEM}={WMM,WALL,METAL,PAVE,GW,GPAVE,CUT,CT,GEM,...o}); rebuild(); show(cur);};
 window.__st={};
+
+// 재생/멈춤 버튼: 손 영상을 자유롭게 움직이거나 멈춤
+(function(){const b=document.getElementById('b-play'); const paint=()=>{b.textContent=AUTO?'❚❚ 멈춤':'▶ 재생'; b.setAttribute('aria-pressed',String(!AUTO)); b.setAttribute('aria-label',AUTO?'손 영상 멈추기':'손 영상 재생');};
+  b.onclick=()=>{AUTO=!AUTO; resumeAt=0; paint();}; paint();})();
+
+// 내 호수 고르기: 기본 드롭다운 대신 작은 목록 (스크롤바는 얇은 막대만)
+(function(){const sel=$('s-ho'), btn=$('b-ho'), pop=$('p-ho');
+  const paint=()=>{$('b-hov').textContent=sel.options[sel.selectedIndex].text;};
+  pop.innerHTML=[...sel.options].map(o=>`<button type="button" role="option" data-v="${o.value}">${o.text}</button>`).join('');
+  const open=v=>{pop.hidden=!v; btn.setAttribute('aria-expanded',String(v)); if(v){pop.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.v===sel.value))); const on=pop.querySelector('[aria-selected="true"]'); if(on)pop.scrollTop=on.offsetTop-pop.clientHeight/2+18;}};
+  btn.onclick=e=>{e.stopPropagation(); open(pop.hidden);};
+  pop.onclick=e=>{const b=e.target.closest('button'); if(!b)return; sel.value=b.dataset.v; sel.dispatchEvent(new Event('change')); paint(); open(false);};
+  document.addEventListener('pointerdown',e=>{if(!pop.hidden&&!pop.contains(e.target)&&e.target!==btn&&!btn.contains(e.target))open(false);});
+  paint();})();

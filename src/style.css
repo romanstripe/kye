@@ -2,6 +2,7 @@
 :root {
   --ink: #111111;
   --sub: #86868b;
+  --line: rgba(0, 0, 0, 0.09);
   --glass: rgba(255, 255, 255, 0.78);
   --font: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard', 'Noto Sans KR', system-ui, sans-serif;
   color-scheme: light;
@@ -46,3 +47,35 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .chip { height: 36px; font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--ink); padding: 9px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06); }
 .chip:disabled { color: var(--sub); cursor: default; }
 .note { font-size: 12.5px; font-weight: 500; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); padding: 9px 13px; border-radius: 14px; }
+
+.primary { display: block; width: calc(100% - 40px); margin: 0 20px; font: inherit; font-size: 15px; font-weight: 600; border: 0; border-radius: 999px; padding: 15px; background: var(--ink); color: #fff; cursor: pointer; letter-spacing: -0.1px; }
+.primary:disabled { opacity: 0.5; cursor: default; }
+.sh-head { display: flex; align-items: baseline; gap: 8px; padding: 2px 14px 8px; }
+.sh-head button { font: inherit; font-size: 22px; line-height: 1; border: 0; background: none; color: var(--ink); padding: 2px 6px; cursor: pointer; }
+.sh-head b { font-size: 17px; font-weight: 600; }
+.sh-head span { color: var(--sub); font-size: 12.5px; }
+.dbody { max-height: 36vh; overflow-y: auto; padding: 0 20px 12px; }
+.grp { padding: 9px 0; border-top: 1px solid var(--line); }
+.grp:first-child { border-top: 0; }
+.gl { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips + .chips { margin-top: 6px; }
+.chips button { font: inherit; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.6); color: var(--ink); padding: 8px 13px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chips button[aria-pressed='true'] { border-color: var(--ink); box-shadow: inset 0 0 0 0.5px var(--ink); font-weight: 600; }
+.chips i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.solinfo { font-size: 12.5px; color: var(--ink); font-weight: 500; margin-top: 8px; }
+.dbody::-webkit-scrollbar { width: 4px; background: transparent; }
+.dbody::-webkit-scrollbar-track { background: transparent; }
+.dbody::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.28); border-radius: 2px; }
+.dbody::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+
+.zw { transition: transform 0.25s ease; }
+.chip[aria-pressed='true'] { background: var(--ink); color: #fff; }
+.pick span { color: var(--sub); font-weight: 500; }
+.hopop { position: fixed; z-index: 30; width: 120px; max-height: 192px; overflow-y: auto; background: rgba(255, 255, 255, 0.94); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14); padding: 6px; display: flex; flex-direction: column; }
+.hopop button { font: inherit; font-size: 14px; border: 0; background: none; text-align: left; padding: 8px 12px; height: 36px; border-radius: 10px; color: var(--ink); cursor: pointer; flex: none; }
+.hopop button[aria-selected='true'] { background: var(--ink); color: #fff; font-weight: 600; }
+.hopop::-webkit-scrollbar { width: 4px; background: transparent; }
+.hopop::-webkit-scrollbar-track { background: transparent; }
+.hopop::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.28); border-radius: 2px; }
+.hopop::-webkit-scrollbar-button { display: none; height: 0; }

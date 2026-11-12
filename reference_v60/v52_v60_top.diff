@@ -1,0 +1,99 @@
+--- top13.v52.html	2026-11-10 07:54:20.591683066 +0000
++++ top13.html	2026-11-12 04:35:03.368655623 +0000
+@@ -12,7 +12,34 @@
+ .box{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:max(100%,calc(100vh*480/854));aspect-ratio:480/854;overflow:hidden;background:#ddd}
+ .zw{position:absolute;inset:0;transform-origin:0 0;transition:transform .25s ease}
+ .box img,.box canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+-.tools{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;gap:6px;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 0;overflow-x:auto;scrollbar-width:none}
++.hints{position:absolute;inset:0;z-index:3}
++.hint{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:0;background:rgba(255,255,255,.82);color:var(--ink);font-size:18px;line-height:34px;text-align:center;cursor:pointer;box-shadow:0 0 0 2px rgba(255,255,255,.5),0 2px 10px rgba(0,0,0,.18);animation:hp 1.4s ease-in-out infinite;padding:0}
++.hint span{position:absolute;left:50%;top:38px;transform:translateX(-50%);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
++@keyframes hp{50%{transform:scale(1.12)}}
++@media (prefers-reduced-motion:reduce){.hint{animation:none}}
++.toast{position:absolute;left:50%;top:calc(64px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:3;background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;padding:9px 14px;border-radius:999px;white-space:nowrap}
++.fsw{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:6px}
++.fsw button{border:0;background:none;font:inherit;font-size:11px;font-weight:600;color:var(--sub);padding:3px 6px;border-radius:999px;cursor:pointer}
++.fsw button[aria-pressed="true"]{background:var(--ink);color:#fff}
++.addl[aria-pressed="true"]{background:var(--ink);color:#fff;border-style:solid;border-color:var(--ink)}
++.stack{transform-origin:22px -8px;transform:scale(.2);opacity:0;pointer-events:none;transition:transform .32s cubic-bezier(.34,1.56,.64,1),opacity .18s;position:absolute;left:12px;top:calc(64px + env(safe-area-inset-top,0px));z-index:2;display:flex;flex-direction:column;align-items:center;gap:0;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:999px;padding:6px;box-shadow:0 1px 8px rgba(0,0,0,.06)}
++.stack.open{transform:none;opacity:1;pointer-events:auto}
++@media (prefers-reduced-motion:reduce){.stack{transition:opacity .15s}}
++.setb[aria-expanded="true"]{background:var(--ink);color:#fff}
++.setb{padding-left:12px;padding-right:12px}
++.setb .cnt{display:inline-block;min-width:16px;height:16px;line-height:16px;border-radius:8px;background:var(--ink);color:#fff;font-size:10px;font-weight:700;margin-left:5px;padding:0 4px;text-align:center}
++.setb[aria-expanded="true"] .cnt{background:#fff;color:var(--ink)}
++.playb{margin-left:auto;width:36px;padding:0;text-align:center;font-size:11px;letter-spacing:-1px}
++.lay{position:relative;width:44px;height:44px;border-radius:50%;border:0;padding:0;background:#fff;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line)}
++.lay img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
++.lay[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
++.lay .x{position:absolute;right:-4px;top:-4px;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font-size:10px;line-height:18px;text-align:center}
++.gapb{border:0;background:none;cursor:pointer;padding:3px 0;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--sub);font:inherit;font-size:9.5px;font-weight:600;min-width:44px}
++.gapb i{display:block;width:16px;border-top:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transition:height .2s}
++.addl{width:44px;height:44px;border-radius:50%;border:1.5px dashed rgba(0,0,0,.3);background:none;font-size:20px;line-height:1;color:var(--ink);cursor:pointer;margin-bottom:6px}
++.addl+.lbl{margin-top:0}
++.stack .lbl{font-size:9.5px;font-weight:600;color:var(--sub);margin-top:4px}
++.tools{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;gap:5px;padding:calc(12px + env(safe-area-inset-top,0px)) 10px 0;overflow-x:auto;scrollbar-width:none}
+ .tools::-webkit-scrollbar{display:none}
+ .seg{display:inline-flex;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:999px;padding:3px;flex:none;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+ .seg button{font:inherit;font-size:12.5px;font-weight:500;border:0;background:none;color:var(--sub);padding:6px 11px;border-radius:999px;cursor:pointer;white-space:nowrap}
+@@ -22,7 +49,7 @@
+ .pick select{appearance:none;-webkit-appearance:none;border:0;background:none;font:inherit;font-weight:600;color:var(--ink);padding:0;cursor:pointer;outline:none}
+ .pick::after{content:"";position:absolute;right:12px;top:50%;width:6px;height:6px;border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+ .pick:focus-within{outline:2px solid var(--ink);outline-offset:2px}
+-.chip{height:36px;font:inherit;font-size:12.5px;font-weight:500;border:0;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);color:var(--ink);padding:9px 13px;border-radius:999px;cursor:pointer;white-space:nowrap;flex:none;box-shadow:0 1px 8px rgba(0,0,0,.06)}
++.chip{height:36px;font:inherit;font-size:12.5px;font-weight:500;border:0;background:var(--glass);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);color:var(--ink);padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;flex:none;box-shadow:0 1px 8px rgba(0,0,0,.06)}
+ .chip[aria-pressed="true"]{background:var(--ink);color:#fff}
+ button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+ .sheet{position:absolute;left:0;right:0;bottom:0;z-index:3;background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(1.4);backdrop-filter:blur(24px) saturate(1.4);border-radius:26px 26px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.08);padding:6px 0 calc(14px + env(safe-area-inset-bottom,0px))}
+@@ -61,6 +88,17 @@
+ .chips i{width:12px;height:12px;border-radius:50%;display:inline-block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+ #solinfo{font-size:12.5px;color:var(--ink);font-weight:500;margin-top:8px}
+ [hidden]{display:none!important}
++.worn{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 20px 0}
++.worn::-webkit-scrollbar{display:none}
++.wchip{display:inline-flex;align-items:center;flex:none;background:rgba(0,0,0,.05);border-radius:999px}
++.wchip.on{background:var(--ink)}
++.wchip button{font:inherit;font-size:12.5px;font-weight:500;border:0;background:none;color:var(--ink);padding:7px 4px 7px 12px;cursor:pointer;white-space:nowrap}
++.wchip button:only-child{padding-right:12px}
++.wchip.on button{color:#fff}
++.wchip .wx{padding:7px 10px 7px 4px;font-size:11px;opacity:.7}
++.wq{flex:none;align-self:center;font-size:12.5px;color:rgba(0,0,0,.55);padding-left:4px}
++.wadd.wf{border-style:solid;border-color:rgba(0,0,0,.15)}
++.wadd{font:inherit;font-size:12.5px;font-weight:600;border:1px dashed rgba(0,0,0,.3);background:none;color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;flex:none}
+ /* 스크롤바는 어디서나 얇은 막대만 (배경·화살표 없음) */
+ .dbody::-webkit-scrollbar,.hopop::-webkit-scrollbar{width:4px;background:transparent}
+ .dbody::-webkit-scrollbar-track,.hopop::-webkit-scrollbar-track{background:transparent}
+@@ -82,18 +120,20 @@
+ </style>
+ <div class="app">
+ <div class="tools">
+-<button class="chip" id="b-play" aria-pressed="false">❚❚ 멈춤</button>
++<button class="chip setb" id="b-set" aria-expanded="false" aria-controls="worn">반지 세트<span class="cnt" id="b-setn" hidden></span></button>
+ <label class="pick" hidden><span>조명</span><select id="s-light" aria-label="조명"><option value="office" selected>실내</option><option value="store">매장</option><option value="sun">햇빛</option></select></label>
+-<div class="hosel"><button type="button" class="pick pickb" id="b-ho" aria-haspopup="listbox" aria-expanded="false"><span>내 호수</span><b id="b-hov">17.5호</b></button><div class="hopop" id="p-ho" role="listbox" aria-label="내 반지 호수" hidden></div><label class="pick" hidden><span>내 호수</span><select id="s-ho" aria-label="내 반지 호수"><option value="5">5호</option><option value="5.5">5.5호</option><option value="6">6호</option><option value="6.5">6.5호</option><option value="7">7호</option><option value="7.5">7.5호</option><option value="8">8호</option><option value="8.5">8.5호</option><option value="9">9호</option><option value="9.5">9.5호</option><option value="10">10호</option><option value="10.5">10.5호</option><option value="11">11호</option><option value="11.5">11.5호</option><option value="12">12호</option><option value="12.5">12.5호</option><option value="13">13호</option><option value="13.5">13.5호</option><option value="14">14호</option><option value="14.5">14.5호</option><option value="15">15호</option><option value="15.5">15.5호</option><option value="16">16호</option><option value="16.5">16.5호</option><option value="17">17호</option><option value="17.5" selected>17.5호</option><option value="18">18호</option><option value="18.5">18.5호</option><option value="19">19호</option><option value="19.5">19.5호</option><option value="20">20호</option><option value="20.5">20.5호</option><option value="21">21호</option><option value="21.5">21.5호</option><option value="22">22호</option><option value="22.5">22.5호</option><option value="23">23호</option><option value="23.5">23.5호</option><option value="24">24호</option><option value="24.5">24.5호</option><option value="25">25호</option></select></label></div>
+-<button class="chip" id="b-zoom" aria-pressed="false">가까이</button>
++<div class="hosel"><button type="button" class="pick pickb" id="b-ho" aria-haspopup="listbox" aria-expanded="false" aria-label="내 반지 호수"><span>내 호수</span><b id="b-hov">17.5호</b></button><div class="hopop" id="p-ho" role="listbox" aria-label="내 반지 호수" hidden></div><label class="pick" hidden><span>내 호수</span><select id="s-ho" aria-label="내 반지 호수"><option value="5">5호</option><option value="5.5">5.5호</option><option value="6">6호</option><option value="6.5">6.5호</option><option value="7">7호</option><option value="7.5">7.5호</option><option value="8">8호</option><option value="8.5">8.5호</option><option value="9">9호</option><option value="9.5">9.5호</option><option value="10">10호</option><option value="10.5">10.5호</option><option value="11">11호</option><option value="11.5">11.5호</option><option value="12">12호</option><option value="12.5">12.5호</option><option value="13">13호</option><option value="13.5">13.5호</option><option value="14">14호</option><option value="14.5">14.5호</option><option value="15">15호</option><option value="15.5">15.5호</option><option value="16">16호</option><option value="16.5">16.5호</option><option value="17">17호</option><option value="17.5" selected>17.5호</option><option value="18">18호</option><option value="18.5">18.5호</option><option value="19">19호</option><option value="19.5">19.5호</option><option value="20">20호</option><option value="20.5">20.5호</option><option value="21">21호</option><option value="21.5">21.5호</option><option value="22">22호</option><option value="22.5">22.5호</option><option value="23">23호</option><option value="23.5">23.5호</option><option value="24">24호</option><option value="24.5">24.5호</option><option value="25">25호</option></select></label></div>
++<button class="chip" id="b-zoom" aria-pressed="false" hidden>가까이</button>
+ <button class="chip" id="b-reshoot">다시 찍기</button>
++<button class="chip playb" id="b-play" aria-pressed="false">❚❚</button>
+ </div>
+-<div class="stage" id="stage"><div class="box" id="box"><div class="zw" id="zw"><img id="img" alt="왼손 사진 위에 고른 반지"><div id="tint" style="position:absolute;inset:0;pointer-events:none"></div><canvas id="sh"></canvas><canvas id="out"></canvas></div></div></div>
++<div class="toast" id="toast" hidden>반지 낄 손가락을 눌러 주세요</div><div class="stack" id="worn" aria-label="겹쳐 낀 반지 (위가 손톱 쪽)"></div><div class="stage" id="stage"><div class="box" id="box"><div class="zw" id="zw"><img id="img" alt="왼손 사진 위에 고른 반지"><div id="tint" style="position:absolute;inset:0;pointer-events:none"></div><canvas id="sh"></canvas><canvas id="out"></canvas><div class="hints" id="hints" hidden></div></div></div></div>
+ <input type="range" id="r" min="0" value="0" hidden aria-hidden="true">
+ <section class="sheet" id="sheet" aria-label="반지 고르기">
+ <button class="grab-btn" id="b-grab" aria-label="반지 고르기 접기" aria-expanded="true"><span class="grab"></span><span class="grab-t" id="grabtxt"></span></button>
+ <div id="pList">
+ <div id="tabs" hidden></div>
++
+ <div class="wheel" id="wheel"></div>
+ <div class="picked" id="picked"></div>
+ <button class="primary" id="b-detail">이 반지 자세히 설정</button>
+@@ -103,6 +143,8 @@
+ <div class="dbody">
+ <div class="grp" id="g-metal"><div class="gl">색상</div><div class="chips" id="c-metal"></div></div>
+ <div class="grp" id="g-w"><div class="gl">폭</div><div class="chips" id="c-w"></div></div>
++<div class="grp" id="g-fg"><div class="gl">끼울 손가락</div><div class="chips" id="c-fg"></div></div>
++<div class="grp" id="g-gap" hidden><div class="gl">앞 반지와 간격</div><div class="chips" id="c-gap"></div></div>
+ <div class="grp" id="g-rim" hidden><div class="gl">테두리 색</div><div class="chips" id="c-rim"></div></div>
+ <div class="grp" id="g-pave"><div class="gl">파베</div><div class="chips" id="c-pave"></div></div>
+ <div class="grp" id="g-th"><div class="gl">두께</div><div class="chips" id="c-th"></div></div>

@@ -9,7 +9,7 @@ import type { SkinMask } from '../hand/skin.ts'
 import { makeSlider, makeNudo } from './heads.ts'
 import { STORE_ENV } from './lights.ts'
 import { SEGS, occ, JI, occJ } from './occluders.ts'
-import { measure, median } from '../hand/width.ts'
+import { measure, median, FINGERS, FINGER_NAME } from '../hand/width.ts'
 import { drawHandDebug } from './debugDraw.ts'
 
 // public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
@@ -180,7 +180,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const ws: number[] = [], ls: number[] = []
     for (let i = PMIN; i <= PMAX; i++) {
       const r = meas.get(frames[i]); if (!r) return false
-      if (r.w != null) { ws.push(r.w); ls.push(len1314(i)) }
+      if (r.ring.w != null) { ws.push(r.ring.w); ls.push(len1314(i)) }
     }
     fixed = ws.length ? { W: median(ws), L: median(ls), n: ws.length } : { W: 0, L: 1, n: 0 }
     return true
@@ -205,24 +205,33 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && (DEBUG || T.measured) && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
   function report() { if (els.onInfo) (T.measured ? reportMine : reportDemo)(els.onInfo) }
   // 내 영상: 폭 재는 중 / 실패 / (디버그) 고정 폭과 반지 크기
+  // 손가락별: 재생 구간에서 양쪽 경계가 잡힌 프레임들의 폭 가운데값(잰 프레임 수)
+  function fingerLine() {
+    return FINGERS.map(f => {
+      const ws: number[] = []
+      for (let i = PMIN; i <= PMAX; i++) { const q = meas.get(frames[i])?.[f]; if (q?.w != null) ws.push(q.w) }
+      return `${FINGER_NAME[f]} ${ws.length ? median(ws).toFixed(1) : '-'}(${ws.length})`
+    }).join(' · ')
+  }
   function reportMine(say: (s: string) => void) {
     const total = PMAX - PMIN + 1; let done = 0
     for (let i = PMIN; i <= PMAX; i++) if (meas.get(frames[i])) done++
     if (!fixed) { say(`약지 폭 재는 중 ${done}/${total}`); return }
     if (!fixed.n) { say('약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)'); return }
     if (!DEBUG) { say(''); return }
-    say(`잰 프레임 ${fixed.n}/${total} · 고정 폭 ${fixed.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px`)
+    say(`잰 프레임 ${fixed.n}/${total} · 고정 폭 ${fixed.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px
+${fingerLine()}`)
   }
   // 예시 손: (디버그) 잰 폭 가운데값만 보여줌. 반지 크기에는 쓰지 않음
   function reportDemo(say: (s: string) => void) {
     if (!DEBUG) { say(''); return }
     const ok: number[] = [], total = PMAX - PMIN + 1; let done = 0
-    for (let i = PMIN; i <= PMAX; i++) { const r = meas.get(frames[i]); if (!r) continue; done++; if (r.w != null) ok.push(r.w) }
-    const cu = meas.get(frames[cur])
+    for (let i = PMIN; i <= PMAX; i++) { const r = meas.get(frames[i]); if (!r) continue; done++; if (r.ring.w != null) ok.push(r.ring.w) }
+    const cu = meas.get(frames[cur])?.ring
     const head = ok.length ? `폭 ${median(ok).toFixed(1)}px · ${ok.length}프레임 사용` : '폭 아직 없음'
     const prog = done < total ? ` (계산 ${done}/${total})` : done !== ok.length ? ` (${done - ok.length}프레임 제외)` : ''
     const now = cu ? (cu.w != null ? ` · 이 프레임 ${cu.w.toFixed(1)}px (소지 ${cu.kindP}·중지 ${cu.kindM})` : ' · 이 프레임은 제외') : ''
-    say(head + prog + now)
+    say(head + prog + now + '\n' + fingerLine())
   }
   function drawDebug() {
     const cv2 = els.debug; if (!cv2) return

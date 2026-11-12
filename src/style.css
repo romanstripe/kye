@@ -45,7 +45,7 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .tools { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 6px; padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 0; flex-wrap: wrap; }
 .chip { height: 36px; font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: var(--ink); padding: 9px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; flex: none; box-shadow: 0 1px 8px rgba(0, 0, 0, 0.06); }
 .chip:disabled { color: var(--sub); cursor: default; }
-.note { font-size: 12.5px; font-weight: 500; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); padding: 9px 13px; border-radius: 14px; }
+.note { white-space: pre-line; font-size: 12.5px; font-weight: 500; background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); padding: 9px 13px; border-radius: 14px; }
 
 .primary { display: block; width: calc(100% - 40px); margin: 0 20px; font: inherit; font-size: 15px; font-weight: 600; border: 0; border-radius: 999px; padding: 15px; background: var(--ink); color: #fff; cursor: pointer; letter-spacing: -0.1px; }
 .primary:disabled { opacity: 0.5; cursor: default; }

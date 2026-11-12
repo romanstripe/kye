@@ -505,6 +505,105 @@
         }
       }
     },
+
+    {
+      "id": "MV",
+      "name": "무빙원",
+      "sub": "타원 틀 안에서 움직이는 알",
+      "widths": [4.6, 5.8],
+      "widthLabels": {
+        "4.6": "스몰 (타원 10.3mm)",
+        "5.8": "라지 (타원 13.9mm)"
+      },
+      "defaultWidth": 4.6,
+      "wall": 1,
+      "metal": "WG",
+      "diy": false,
+      "rimColor": false,
+      "gemPick": false,
+      "gem": null,
+      "pave": {
+        "semi": {
+          "label": "타원에만",
+          "byWidth": {
+            "4.6": {
+              "mv": 1,
+              "front": 1,
+              "d": 0.75,
+              "noBeads": 1
+            },
+            "5.8": {
+              "mv": 1,
+              "front": 1,
+              "d": 0.75,
+              "noBeads": 1
+            }
+          }
+        },
+        "full": {
+          "label": "타원 + 밴드",
+          "byWidth": {
+            "4.6": {
+              "mv": 1,
+              "d": 0.75,
+              "noBeads": 1
+            },
+            "5.8": {
+              "mv": 1,
+              "d": 0.75,
+              "noBeads": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ND",
+      "name": "누디",
+      "sub": "동글게 깎은 큰 컬러 알",
+      "widths": [3, 4],
+      "widthLabels": {
+        "3": "쁘띠",
+        "4": "클래식"
+      },
+      "defaultWidth": 4,
+      "wall": 2,
+      "metal": "PG",
+      "diy": false,
+      "rimColor": false,
+      "gemPick": true,
+      "gem": "topaz",
+      "pave": {
+        "full": {
+          "label": "풀 파베 (밴드 전체)",
+          "byWidth": {
+            "3": {
+              "ys": [
+                -0.35625, -0.11875000000000001, 0.11875000000000001, 0.35625
+              ],
+              "arc": 1,
+              "d": 0.85,
+              "gap": 0.96,
+              "flat": 1,
+              "lift": 0.01,
+              "noBeads": 1
+            },
+            "4": {
+              "ys": [
+                -0.4010416666666667, -0.240625, -0.08020833333333331,
+                0.08020833333333337, 0.240625, 0.40104166666666663
+              ],
+              "arc": 1,
+              "d": 0.85,
+              "gap": 0.96,
+              "flat": 1,
+              "lift": 0.01,
+              "noBeads": 1
+            }
+          }
+        }
+      }
+    },
     {
       "id": "SOL",
       "name": "원스톤 링",
@@ -632,104 +731,6 @@
               "ys": [0],
               "arc": 1,
               "d": 2.2
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "MV",
-      "name": "무빙원",
-      "sub": "타원 틀 안에서 움직이는 알",
-      "widths": [4.6, 5.8],
-      "widthLabels": {
-        "4.6": "스몰 (타원 10.3mm)",
-        "5.8": "라지 (타원 13.9mm)"
-      },
-      "defaultWidth": 4.6,
-      "wall": 1,
-      "metal": "WG",
-      "diy": false,
-      "rimColor": false,
-      "gemPick": false,
-      "gem": null,
-      "pave": {
-        "semi": {
-          "label": "타원에만",
-          "byWidth": {
-            "4.6": {
-              "mv": 1,
-              "front": 1,
-              "d": 0.75,
-              "noBeads": 1
-            },
-            "5.8": {
-              "mv": 1,
-              "front": 1,
-              "d": 0.75,
-              "noBeads": 1
-            }
-          }
-        },
-        "full": {
-          "label": "타원 + 밴드",
-          "byWidth": {
-            "4.6": {
-              "mv": 1,
-              "d": 0.75,
-              "noBeads": 1
-            },
-            "5.8": {
-              "mv": 1,
-              "d": 0.75,
-              "noBeads": 1
-            }
-          }
-        }
-      }
-    },
-    {
-      "id": "ND",
-      "name": "누디",
-      "sub": "동글게 깎은 큰 컬러 알",
-      "widths": [3, 4],
-      "widthLabels": {
-        "3": "쁘띠",
-        "4": "클래식"
-      },
-      "defaultWidth": 4,
-      "wall": 2,
-      "metal": "PG",
-      "diy": false,
-      "rimColor": false,
-      "gemPick": true,
-      "gem": "topaz",
-      "pave": {
-        "full": {
-          "label": "풀 파베 (밴드 전체)",
-          "byWidth": {
-            "3": {
-              "ys": [
-                -0.35625, -0.11875000000000001, 0.11875000000000001, 0.35625
-              ],
-              "arc": 1,
-              "d": 0.85,
-              "gap": 0.96,
-              "flat": 1,
-              "lift": 0.01,
-              "noBeads": 1
-            },
-            "4": {
-              "ys": [
-                -0.4010416666666667, -0.240625, -0.08020833333333331,
-                0.08020833333333337, 0.240625, 0.40104166666666663
-              ],
-              "arc": 1,
-              "d": 0.85,
-              "gap": 0.96,
-              "flat": 1,
-              "lift": 0.01,
-              "noBeads": 1
             }
           }
         }

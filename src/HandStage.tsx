@@ -66,12 +66,7 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
         rings,
         hand,
       )
-      const id = new URLSearchParams(location.search).get('ring') // 확인용: ?ring=SP
-      if (id) stage.pick(id)
-      const q = new URLSearchParams(location.search)
-      if (q.has('pave') || q.has('w') || q.has('frame'))
-        stage.debug({ ...(q.has('pave') && { PAVE: q.get('pave') }), ...(q.has('w') && { WMM: +q.get('w')! }) }, q.has('frame') ? +q.get('frame')! : undefined)
-      ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: id ?? rings[0].id })
+      ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: rings[0].id })
     })
     return () => {
       dead = true

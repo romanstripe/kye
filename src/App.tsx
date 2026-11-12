@@ -29,6 +29,7 @@ export default function App() {
     <div className="app">
       <div className="stage">
         <HandStage
+          onActiveRing={setSel}
           onReady={(m) => {
             setMenu(m)
             setSel(m.initial)

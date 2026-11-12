@@ -42,6 +42,17 @@ export default function Wheel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 바깥에서 고른 반지가 바뀌면(끼운 반지를 눌러 전환) 가운데로 옮김. 직접 굴려 고른 경우는 이미 가운데라 그대로
+  useLayoutEffect(() => {
+    const w = el.current!
+    const mid = w.getBoundingClientRect().left + w.clientWidth / 2
+    const i = rings.findIndex((r) => r.id === sel)
+    const b = w.children[i] as HTMLElement | undefined
+    if (!b) return
+    const r = b.getBoundingClientRect()
+    if (Math.abs(r.left + r.width / 2 - mid) > 8) w.scrollLeft = b.offsetLeft + b.offsetWidth / 2 - w.clientWidth / 2
+  }, [sel, rings])
+
   return (
     <div className="wheel" ref={el} onScroll={() => requestAnimationFrame(update)}>
       {rings.map((c) => (

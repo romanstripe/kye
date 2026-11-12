@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createStage } from './three/stage.ts'
 import type { RingInfo, HandData } from './three/stage.ts'
 import { analyzeVideo, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
+import { FINGERS, FINGER_NAME } from './hand/width.ts'
+import type { Finger } from './hand/width.ts'
 
 export type Menu = {
   rings: RingInfo[]
@@ -20,7 +22,7 @@ const IH = 854
 
 // 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 데이터는 public/rings.json, public/demo/hand.json
 // 내 영상을 올리면 그 손으로, 실패하거나 안 올리면 예시 손으로 보여줌
-export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
+export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void }) {
   const img = useRef<HTMLImageElement>(null)
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
@@ -36,7 +38,15 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
   const [msg, setMsg] = useState('')
   const [playing, setPlaying] = useState(true)
   const [zoom, setZoom] = useState(false)
-  const [setOpen, setSetOpen] = useState(false)   // 반지 세트 패널 (아직 내용 없음)
+  const [setOpen, setSetOpen] = useState(false)   // 반지 세트 패널 열림
+  const [slots, setSlots] = useState<{ id: string; active: boolean; finger: string }[]>([])   // 끼운 반지들
+  const [pick, setPick] = useState(false)   // 반지 낄 손가락 고르는 중
+  const [hints, setHints] = useState<{ f: string; name: string; x: number; y: number }[]>([])   // 손가락마다 ＋ 점 자리(px)
+  const active = useRef(onActiveRing)
+  active.current = onActiveRing
+  const worn = useRef<HTMLDivElement>(null)
+  const ringsRef = useRef<RingInfo[]>([])
+  const setBtn = useRef<HTMLButtonElement>(null)
   const [ho, setHo] = useState(17.5)
   const [hoOpen, setHoOpen] = useState(false)
   const hoBtn = useRef<HTMLButtonElement>(null)
@@ -62,8 +72,9 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
         frames: Array.from({ length: raw.count }, (_, i) => `/demo/frames/${String(i).padStart(2, '0')}.jpg`),
       }
       demo.current = hand
+      ringsRef.current = rings
       stage = stageRef.current = createStage(
-        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo },
+        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo, onHints: setHints, onSlots: (l) => { setSlots(l); const a = l.find((x) => x.active); if (a) active.current?.(a.id) } },
         rings,
         hand,
       )
@@ -89,6 +100,26 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
   }, [hoOpen])
+
+  useEffect(() => {
+    if (!setOpen) return
+    const close = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (pick) return
+      if (!worn.current?.contains(t) && !setBtn.current?.contains(t)) setSetOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [setOpen, pick])
+
+  const choose = (v: boolean) => {   // 손가락 고르기 켜기/끄기 (켜면 영상 멈춤)
+    setPick(v)
+    stageRef.current?.setPick(v)
+  }
+  useEffect(() => {
+    if (!setOpen && pick) choose(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setOpen])
 
   const useDemo = () => {
     if (demo.current) stageRef.current?.setHand(demo.current)
@@ -135,16 +166,101 @@ export default function HandStage({ onReady }: { onReady: (m: Menu) => void }) {
           <canvas ref={shadow} />
           <canvas ref={out} />
           <canvas ref={dbg} width={IW * 2} height={IH * 2} />
+          {pick && (
+            <div className="hints">
+              {hints.map((h) => (
+                <button
+                  key={h.f}
+                  type="button"
+                  className="hint"
+                  aria-label={`${h.name}에 끼기`}
+                  style={{ left: `${(h.x / IW) * 100}%`, top: `${(h.y / IH) * 100}%` }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    choose(false)
+                    stageRef.current?.addSlot(h.f)
+                  }}
+                >
+                  ＋<span>{h.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
+      {pick && <div className="toast">반지 낄 손가락을 눌러 주세요</div>}
+      <div ref={worn} id="worn" className={`stack${setOpen ? ' open' : ''}`} aria-label="끼운 반지 (위가 손톱 쪽)">
+        {(() => {
+          const act = slots.find((s) => s.active)
+          const used = FINGERS.filter((f) => slots.some((s) => s.finger === f))
+          const mine = slots.map((sl, i) => ({ ...sl, i })).filter((s) => s.finger === (act?.finger ?? 'ring')).reverse()   // 지금 손가락의 층만, 위 = 손톱 쪽
+          return (
+            <>
+              {used.length > 1 && (
+                <div className="fsw">
+                  {used.map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      aria-pressed={f === act?.finger}
+                      onClick={() => {
+                        const l = slots.map((s, i) => ({ ...s, i })).filter((s) => s.finger === f)
+                        stageRef.current?.switchSlot(l[l.length - 1].i)
+                      }}
+                    >
+                      {FINGER_NAME[f]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {slots.length < 8 && (
+                <button type="button" className="addl" aria-label="반지 하나 더 끼기" aria-pressed={pick} onClick={() => choose(!pick)}>
+                  ＋
+                </button>
+              )}
+              {mine.map(({ id, active: on, i, finger }) => {
+                const name = ringsRef.current.find((r) => r.id === id)?.name ?? id
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className="lay"
+                    aria-pressed={on}
+                    aria-label={`${FINGER_NAME[finger as Finger]} ${name}`}
+                    onClick={() => stageRef.current?.switchSlot(i)}
+                  >
+                    <img alt="" src={(stageRef.current?.thumbs as Record<string, string> | undefined)?.[id] ?? ''} />
+                    {on && slots.length > 1 && (
+                      <span
+                        className="x"
+                        role="button"
+                        aria-label="이 반지 빼기"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          stageRef.current?.removeSlot(i)
+                        }}
+                      >
+                        ✕
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+              {used.length === 1 && used[0] !== 'ring' && <span className="lbl">{FINGER_NAME[used[0]]}</span>}
+            </>
+          )
+        })()}
       </div>
       <div className="tools">
         <button
+          ref={setBtn}
           className="chip setb"
           aria-expanded={setOpen}
           aria-controls="worn"
           onClick={() => setSetOpen((o) => !o)}
         >
           반지 세트
+          {slots.length > 1 && <span className="cnt">{slots.length}</span>}
         </button>
         <button
           ref={hoBtn}

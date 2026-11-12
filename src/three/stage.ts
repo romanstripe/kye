@@ -9,8 +9,9 @@ import type { SkinMask } from '../hand/skin.ts'
 import { makeSlider, makeNudo } from './heads.ts'
 import { STORE_ENV } from './lights.ts'
 import { SEGS, occ, JI, occJ } from './occluders.ts'
-import { measure, median, FINGERS, FINGER_NAME } from '../hand/width.ts'
+import { measure, median, FINGERS, FINGER_NAME, JOINT } from '../hand/width.ts'
 import { drawHandDebug } from './debugDraw.ts'
+import { smoothLandmarks } from '../hand/smooth.ts'
 
 // public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
 export type PaveOpt = { label: string; byWidth: Record<string, any> }
@@ -21,14 +22,15 @@ export type RingInfo = {
 }
 // frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
 export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number; custom?: boolean }
-export type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void }
+export type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void; onSlots?: (list: { id: string; active: boolean; finger: string }[]) => void; onHints?: (list: { f: string; name: string; x: number; y: number }[]) => void }
 
 
 
 export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   const { img, shadow: sh, out: outc } = els
+  clip.set(new THREE.Vector3(0, 0, 1), 1000)   // 재질에 달린 잘라내기 평면은 멀리 둠 (손가락별 평면은 renderMain 에서)
   const sx2 = sh.getContext('2d'), ox = outc.getContext('2d')
-  let N = 0, P = [], LMS = [], frames = [], PMIN = 0, PMAX = 0, cur = 0
+  let N = 0, P = [], LMS = [], SM = [], frames = [], PMIN = 0, PMAX = 0, cur = 0
   let AUTO = true, zoom = false, zc = [240, 400]   // 자동 재생 / 가까이 보기 / 확대 중심
 
   // 가까이: 반지 자리를 2.6배 확대해서 보여줌 (손 사진·반지 캔버스를 같이 키움)
@@ -42,12 +44,12 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   addEventListener('resize', applyZoom)
   let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
   function setHand(h) {
-    N = h.N; P = h.P; LMS = h.LMS; frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
+    N = h.N; P = h.P; LMS = h.LMS; SM = smoothLandmarks(LMS); frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
     // 내가 올린 영상은 예시 손에 맞춰 잡은 보정(손등 기울기, 옆 이동, 옆 조임)을 끔
     T = h.custom ? MINE : DEMO; fixed = null
     frames.forEach(u => { new Image().src = u })   // 미리 받아두기
     cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
-    masks.clear(); meas.clear(); inflight.clear(); warmId++; if (DEBUG || T.measured) warm(); report()
+    masks.clear(); meas.clear(); inflight.clear(); warmId++; if (DEBUG || needFixed()) warm(); report()
   }
 
 
@@ -60,9 +62,37 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (c.id === 'MV') S.head = makeSlider(0.0, S.METAL)
     if (c.id === 'ND') S.head = makeNudo(ringWall(), S.METAL, S.WMM)
     S.ring2 = S.GW > 0 ? makeRing('S', Math.min(ringWall(), 1.5), S.GMETAL === 'same' ? (S.METAL || 'YG') : S.GMETAL, S.GW) : null
+    if (!THUMBING) { SLOTS[AI] ??= { objs: null, st: null }; SLOTS[AI].objs = { ring: S.ring, ring2: S.ring2, head: S.head }; SLOTS[AI].st = snap(); notifySlots() }
+  }
+
+  // ---- 끼운 반지(슬롯): 슬롯마다 3D 객체(objs)와 옵션 상태(st)를 가짐. S 와 S.ring/ring2/head 는 지금 고르는 슬롯(AI)의 것
+  const KEYS = ['FINGER', 'CI', 'WMM', 'WALL', 'METAL', 'PAVE', 'GW', 'GPAVE', 'GMETAL', 'RMETAL', 'CUT', 'CT', 'GEM', 'PRONG']
+  const SLOTS: { objs: { ring: any; ring2: any; head: any } | null; st: any }[] = []
+  let AI = 0, THUMBING = false, MASKS: any[] = [], PICKF = false   // PICKF: 반지 낄 손가락을 고르는 중
+  const snap = () => Object.fromEntries(KEYS.map(k => [k, S[k]]))
+  const slotList = () => SLOTS.map((sl, i) => ({ id: CAT[sl.st.CI].id, active: i === AI, finger: sl.st.FINGER as string }))
+  const notifySlots = () => els.onSlots?.(slotList())
+  function activate(i: number) {   // i 번째 슬롯을 지금 고르는 슬롯으로
+    AI = i; const sl = SLOTS[i]; Object.assign(S, sl.st); S.ring = sl.objs!.ring; S.ring2 = sl.objs!.ring2; S.head = sl.objs!.head
+  }
+  // 손가락 고르기: 손가락마다 반지 자리에 ＋ 점을 띄움 (영상은 멈춤). 한 손가락에 최대 3개
+  function emitHints() {
+    const cnt = {}; SLOTS.forEach(sl => { cnt[sl.st.FINGER] = (cnt[sl.st.FINGER] || 0) + 1 })
+    els.onHints?.(PICKF ? FINGERS.filter(f => (cnt[f] || 0) < 3).map(f => ({ f, name: FINGER_NAME[f], pose: poseOf(f) })).filter(h => h.pose).map(h => ({ f: h.f, name: h.name, x: h.pose[0], y: h.pose[1] })) : [])
+  }
+  function setPick(on: boolean) { PICKF = on; if (on && !WANT) { WANT = true; warm() } if (!on) resumeAt = performance.now() + 800; emitHints() }
+  function switchSlot(i: number) { if (i === AI || !SLOTS[i]) return; activate(i); notifySlots(); show() }
+  function addSlot(finger?: string) {   // 지금 반지와 같은 설정으로 하나 더 (가드링은 없음으로), 끼울 손가락은 finger
+    if (SLOTS.length >= 8) return
+    const st = snap(); S.ring = S.ring2 = S.head = null; AI = SLOTS.length; SLOTS.push({ objs: null, st: null }); Object.assign(S, st, { GW: 0, FINGER: finger ?? st.FINGER }); rebuild(); show()
+  }
+  function removeSlot(i: number) {
+    if (SLOTS.length < 2 || !SLOTS[i]) return
+    const o = SLOTS[i].objs!; dispose(o.ring); dispose(o.ring2); if (o.head) S.scene.remove(o.head)
+    SLOTS.splice(i, 1); activate(Math.min(AI > i ? AI - 1 : AI, SLOTS.length - 1)); notifySlots(); show()
   }
   // 파베 설정은 rings.json 에서 읽음. layoutStones 가 ys 배열 등을 건드리므로 매번 복사해서 넘김
-  function paveCfg() { const c = CAT[S.CI]; const v = S.PAVE !== 'none' && c.pave?.[S.PAVE]?.byWidth?.[String(S.WMM)]; return v ? structuredClone(v) : null }
+  function paveCfgOf(st) { const c = CAT[st.CI]; const v = st.PAVE !== 'none' && c.pave?.[st.PAVE]?.byWidth?.[String(st.WMM)]; return v ? structuredClone(v) : null }
 
   // 반지 놓기: 로컬 y = 손가락 축, 로컬 +z = 손등 쪽
   function setRing(g, q, pos, Rin, bandW, axis, off, cfg, sx = 1) {   // sx: 화면에서 손가락 옆 방향으로만 조임 (반지 모양은 그대로 둥글게)
@@ -106,46 +136,98 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const Z = axis.clone().negate(), qH = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(Y, Z), Y, Z))
     return { qR, qH }
   }
-  // 내 영상: 중심 = 13·14를 4:6, 방향 = 13→14, 크기 = 고정 폭 × (이 프레임 13→14 길이 ÷ 잰 프레임들 길이)
-  function minePose() {
-    const L = LMS[cur], w = widthNow()
-    usedW = w
-    return L && w != null ? [L[13][0] * 0.6 + L[14][0] * 0.4, L[13][1] * 0.6 + L[14][1] * 0.4, L[13][2] * 0.6 + L[14][2] * 0.4, L[14][0] - L[13][0], L[14][1] - L[13][1], L[14][2] - L[13][2], w / 2] : null
+  // 손가락별 반지 자리 [cx,cy,cz,dx,dy,dz,반지 안쪽 반지름(px), 폭으로 잰 자리면 true]. 없으면 null
+  //  - 잰 폭이 있으면(내 영상은 항상): 중심 = 관절 두 점을 4:6, 방향 = 관절 방향, 크기 = 그 손가락 고정 폭 × (이 프레임 관절 길이 ÷ 잰 프레임들 길이)
+  //  - 예시 손의 약지: 저장된 반지 자리(P)
+  //  - 예시 손의 다른 손가락: 폭을 다 재기 전에는 약지 자리 비율로 임시 배치, 다 재고 나면 위의 잰 폭 방식
+  const DEMO_K = { thumb: 1.25, index: 0.98, middle: 1.05, ring: 1, pinky: 0.85 }
+  const jlen = (f, i) => { const L = SM[i]; if (!L) return 0; const [a, b] = JOINT[f]; return Math.hypot(L[b][0] - L[a][0], L[b][1] - L[a][1]) }
+  function poseOf(f) {   // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산. 원래 점(LMS)은 폭 재기·디버그 그리기용
+    const L = SM[cur]; if (!L) return null
+    const [ia, ib] = JOINT[f], a = L[ia], b = L[ib]
+    const fx = fixed?.[f], len = jlen(f, cur)
+    const byWidth = fx && fx.n && len > 0 ? [a[0] * 0.6 + b[0] * 0.4, a[1] * 0.6 + b[1] * 0.4, a[2] * 0.6 + b[2] * 0.4, b[0] - a[0], b[1] - a[1], b[2] - a[2], fx.W * len / fx.L / 2, true] : null
+    if (T.measured) return byWidth
+    const Q = P[cur]; if (!Q) return null
+    if (f === 'ring') return Q
+    if (byWidth) return byWidth
+    const ox = Q[0] - (L[13][0] + L[14][0]) / 2, oy = Q[1] - (L[13][1] + L[14][1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], n = Math.hypot(dx, dy, dz) || 1
+    return [(a[0] + b[0]) / 2 + ox, (a[1] + b[1]) / 2 + oy, (a[2] + b[2]) / 2, dx / n, dy / n, dz / n, Q[6] * DEMO_K[f]]
   }
-  function place(p) {
-    const { ring, ring2 } = S
-    if (T.measured) p = minePose()
-    if (!p) { usedW = null; outerPx = null; [ring, ring2].forEach(g => { if (g) { g.visible = false; g.userData.stones.visible = false } }); if (S.head) S.head.visible = false; S.MASK = null; hideOcc(); return }
-    const [cx, cy, cz, dx, dy, dz, fr] = p
-    const FD = S.FD, GW = S.GW, WMM = S.WMM, head = S.head
-    const axis = new THREE.Vector3(dx, -dy, -dz * DZK).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
-    const frK = fr * T.frk, pxmm = 2 * frK / FD; S.pxmmNow = pxmm; const Rin = frK, bandW = WMM * pxmm, W2 = GW * pxmm, gap = 0.2 * pxmm
-    const { qR, qH } = frameFor(axis, tiltUp(dorsal(cur)), 0.1)   // 손이 돈 만큼보다 조금 더 돌려서 알의 옆면(크라운·발)이 보이게
-    pos.add(new THREE.Vector3(1, 0, 0).applyQuaternion(qR).multiplyScalar(Rin * T.lsh))   // T.lsh: 반지를 손가락 옆 방향으로 살짝 옮김 (이 영상에서 왼쪽으로 치우쳐 보여서)
-    setRing(ring, qR, pos, Rin, bandW, axis, 0, paveCfg(), T.sqz)
-    if (ring2) setRing(ring2, qR, pos, Rin, W2, axis, bandW / 2 + gap + W2 / 2, S.GPAVE ? { ys: [0], arc: 1, d: GW * 0.75 } : null, T.sqz)
-    if (T.measured) { OX = 0; OY = 0 } else { const L = LMS[cur]; OX = cx - (L[13][0] + L[14][0]) / 2; OY = cy - (L[13][1] + L[14][1]) / 2 }
-    placeOcc(LMS[cur], frK * OCCK)
-    const t = ring.userData.t; outerPx = 2 * Rin * (1 + t); const u2 = Math.hypot(dx, dy) || 1
-    S.MASK = { cx, cy, ux: dx / u2, uy: dy / u2, hw: Rin * T.sqz * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
-    const MASK = S.MASK
-    if (head) {
-      const qq = head.userData.slide ? qR.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)) : qH; head.quaternion.copy(qq); head.userData.q0 = qq.clone(); head.userData.axis = axis.clone(); slideHead(); head.position.copy(pos); head.scale.setScalar(pxmm); head.visible = true
-      MASK.hw += (head.userData.top + head.userData.W / 2 - FD / 2) * pxmm; MASK.hl = Math.max(MASK.hl, (head.userData.L / 2 + 1.5) * pxmm * 1.2)
-    }
-    const n = new THREE.Vector3(0, 0, 1); n.sub(axis.clone().multiplyScalar(n.dot(axis)))
-    if (n.length() < 0.15) { clip.set(new THREE.Vector3(0, 0, 1), 1000); return }
-    n.normalize(); clip.setFromNormalAndCoplanarPoint(n, pos.clone().add(n.clone().multiplyScalar(-Rin * 0.15)))
+  function hideAll() { SLOTS.forEach(({ objs: o }) => { if (!o) return; [o.ring, o.ring2].forEach(g => { if (g) { g.visible = false; g.userData.stones.visible = false } }); if (o.head) o.head.visible = false }) }
+  function place() {
+    hideAll(); MASKS = []; CLIPS = {}
+    const used = [...new Set(SLOTS.map(sl => sl.st.FINGER as string))]
+    const poses = Object.fromEntries(used.map(f => [f, poseOf(f)]))
+    const refF = poseOf('ring') ? 'ring' : used.find(f => poses[f])   // 가림 원통·잘라내기 평면 기준 손가락 (약지가 있으면 약지)
+    if (!refF) { usedW = null; outerPx = null; S.MASK = null; hideOcc(); return }
+    if (!poses[refF]) poses[refF] = poseOf(refF)
+    const FD = S.FD, qd = tiltUp(dorsal(cur))
+    let ref = null
+    used.forEach(f => {
+      const pf = poses[f]; if (!pf) return
+      const [cx, cy, cz, dx, dy, dz, fr] = pf, bw = pf[7] === true, frk = bw ? 1 : T.frk, lsh = bw ? 0 : T.lsh, sqz = bw ? 1 : T.sqz   // 잰 폭 자리는 예시 영상용 보정(크기 배율·옆 이동·옆 조임)을 쓰지 않음
+      const axis = new THREE.Vector3(dx, -dy, -dz * DZK).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
+      const frK = fr * frk, pxmm = 2 * frK / FD, Rin = frK, gap = 0.2 * pxmm
+      const { qR, qH } = frameFor(axis, qd, 0.1)   // 손이 돈 만큼보다 조금 더 돌려서 알의 옆면(크라운·발)이 보이게
+      pos.add(new THREE.Vector3(1, 0, 0).applyQuaternion(qR).multiplyScalar(Rin * lsh))   // lsh: 반지를 손가락 옆 방향으로 살짝 옮김 (이 영상에서 왼쪽으로 치우쳐 보여서)
+      const u2 = Math.hypot(dx, dy) || 1
+      if (f === refF) ref = { frK, cx, cy }
+      // 이 손가락의 뒤쪽 잘라내기 평면: 관절 방향(축)에 수직인 면 중 카메라 쪽 방향, 반지 중심에서 살짝 뒤. 같은 손가락에 여러 개 끼면 여유를 더 줌
+      const nn = new THREE.Vector3(0, 0, 1); nn.sub(axis.clone().multiplyScalar(nn.dot(axis)))
+      const cnt = SLOTS.filter(sl => sl.st.FINGER === f).length
+      CLIPS[f] = nn.length() < 0.15 ? new THREE.Plane(new THREE.Vector3(0, 0, 1), 1000) : new THREE.Plane().setFromNormalAndCoplanarPoint(nn.normalize(), pos.clone().add(nn.clone().multiplyScalar(-Rin * (cnt > 1 ? 0.6 : 0.15))))
+      SLOTS.forEach((sl, si) => {
+        const st = sl.st, o = sl.objs; if (!o || st.FINGER !== f) return
+        const bandW = st.WMM * pxmm, W2 = st.GW * pxmm
+        setRing(o.ring, qR, pos, Rin, bandW, axis, 0, paveCfgOf(st), sqz)
+        if (o.ring2) setRing(o.ring2, qR, pos, Rin, W2, axis, bandW / 2 + gap + W2 / 2, st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null, sqz)
+        const t = o.ring.userData.t
+        if (si === AI) { outerPx = 2 * Rin * (1 + t); usedW = fr * 2; S.pxmmNow = pxmm }
+        const MK = { cx, cy, ux: dx / u2, uy: dy / u2, hw: Rin * sqz * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
+        const head = o.head
+        if (head) {
+          const qq = head.userData.slide ? qR.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)) : qH; head.quaternion.copy(qq); head.userData.q0 = qq.clone(); head.userData.axis = axis.clone(); slideHead(head); head.position.copy(pos); head.scale.setScalar(pxmm); head.visible = true
+          MK.hw += (head.userData.top + head.userData.W / 2 - FD / 2) * pxmm; MK.hl = Math.max(MK.hl, (head.userData.L / 2 + 1.5) * pxmm * 1.2)
+        }
+        MASKS.push(MK)
+      })
+    })
+    S.MASK = MASKS[0] || null
+    if (!ref) { hideOcc(); return }
+    if (T.measured) { OX = 0; OY = 0 } else { const L = SM[cur]; OX = ref.cx - (L[13][0] + L[14][0]) / 2; OY = ref.cy - (L[13][1] + L[14][1]) / 2 }
+    placeOcc(SM[cur], ref.frK * OCCK)
   }
 
+  // 그리기: 손가락마다 따로 그림 (손가락마다 잘라내기 평면이 달라서). 가림 원통은 깊이만 먼저 한 번 그리고, 반지는 손가락별로
+  //  ① 그 손가락 반지만 보이게 ② renderer.clippingPlanes = 그 손가락 평면 ③ render. autoClear 를 꺼서 앞 손가락 그림이 지워지지 않게 함
+  let CLIPS: Record<string, any> = {}
+  function renderMain() {
+    const objs = SLOTS.map(sl => { const o = sl.objs; return o ? [o.ring, o.ring?.userData.stones, o.ring2, o.ring2?.userData.stones, o.head].filter(Boolean) : [] })
+    const was = objs.map(l => l.map(g => g.visible)), occs = [...occ, ...occJ], occWas = occs.map(m => m.visible)
+    renderer.autoClear = false; renderer.clippingPlanes = []; renderer.clear()
+    objs.forEach(l => l.forEach(g => { g.visible = false })); renderer.render(S.scene, cam)   // 가림 원통(깊이만)
+    occs.forEach(m => { m.visible = false })
+    Object.keys(CLIPS).forEach(f => {
+      objs.forEach((l, i) => l.forEach((g, k) => { g.visible = was[i][k] && SLOTS[i].st.FINGER === f }))
+      renderer.clippingPlanes = [CLIPS[f]]; renderer.render(S.scene, cam)
+    })
+    renderer.clippingPlanes = []; renderer.autoClear = true
+    objs.forEach((l, i) => l.forEach((g, k) => { g.visible = was[i][k] })); occs.forEach((m, i) => { m.visible = occWas[i] })
+  }
+
+  const maskCv = document.createElement('canvas')
   function composite() {
     outc.width = cv.width; outc.height = cv.height; const k = cv.width / IW
-    ox.clearRect(0, 0, outc.width, outc.height); if (!S.MASK) return
+    ox.clearRect(0, 0, outc.width, outc.height); if (!MASKS.length) return
     ox.drawImage(cv, 0, 0)
-    const { cx, cy, ux, uy, hw, hl } = S.MASK, px = -uy, py = ux
-    ox.globalCompositeOperation = 'destination-in'; ox.filter = `blur(${FEATHER * k}px)`; ox.fillStyle = '#000'; ox.beginPath();
-    [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].forEach(([a, b], i) => { const X = (cx + ux * a + px * b) * k, Y = (cy + uy * a + py * b) * k; i ? ox.lineTo(X, Y) : ox.moveTo(X, Y) })
-    ox.closePath(); ox.fill(); ox.filter = 'none'
+    maskCv.width = outc.width; maskCv.height = outc.height; const mx = maskCv.getContext('2d'); mx.fillStyle = '#000'   // 반지마다 자를 영역을 모두 합쳐서 한 번에 자름
+    MASKS.forEach(({ cx, cy, ux, uy, hw, hl }) => {
+      const px = -uy, py = ux; mx.beginPath();
+      [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].forEach(([a, b], i) => { const X = (cx + ux * a + px * b) * k, Y = (cy + uy * a + py * b) * k; i ? mx.lineTo(X, Y) : mx.moveTo(X, Y) })
+      mx.closePath(); mx.fill()
+    })
+    ox.globalCompositeOperation = 'destination-in'; ox.filter = `blur(${FEATHER * k}px)`; ox.drawImage(maskCv, 0, 0); ox.filter = 'none'
     ox.globalCompositeOperation = 'source-over'
   }
   const tmp = document.createElement('canvas')
@@ -164,25 +246,25 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   function show(i = cur) {
     cur = Math.max(PMIN, Math.min(PMAX, Math.round(i))); img.src = frames[cur]
     if (P[cur]) zc = [P[cur][0], P[cur][1]]
-    place(P[cur]); renderer.render(S.scene, cam); composite(); shadow(); applyZoom(); drawDebug(); wantMask(); report()
+    place(); renderMain(); composite(); shadow(); applyZoom(); drawDebug(); wantMask(); report(); if (PICKF) emitHints()
   }
 
   // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
   // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
   let DEBUG = false
-  let fixed: { W: number; L: number; n: number } | null = null   // 고정 폭(px), 잰 프레임들의 13→14 길이(px), 잰 프레임 수
+  let fixed: Record<string, { W: number; L: number; n: number }> | null = null   // 손가락별 고정 폭(px), 잰 프레임들의 관절 길이(px), 잰 프레임 수
   let usedW: number | null = null, outerPx: number | null = null
-  const len1314 = (i: number) => { const L = LMS[i]; return L ? Math.hypot(L[14][0] - L[13][0], L[14][1] - L[13][1]) : 0 }
-  function widthNow() { return fixed && fixed.n > 0 && len1314(cur) > 0 ? fixed.W * len1314(cur) / fixed.L : null }
-  // 재생 구간을 다 재고 나면, 양쪽 경계가 다 잡힌 프레임들의 폭 가운데값을 하나로 고정
+  let WANT = false   // 예시 손에서 다른 손가락을 고르려 하면 켜져서, 손가락 폭을 재기 시작함
+  const needFixed = () => T.measured || WANT
+  // 재생 구간을 다 재고 나면, 손가락마다 양쪽 경계가 다 잡힌 프레임들의 폭 가운데값을 하나로 고정
   function refix() {
-    if (!T.measured || fixed) return false
-    const ws: number[] = [], ls: number[] = []
-    for (let i = PMIN; i <= PMAX; i++) {
-      const r = meas.get(frames[i]); if (!r) return false
-      if (r.ring.w != null) { ws.push(r.ring.w); ls.push(len1314(i)) }
-    }
-    fixed = ws.length ? { W: median(ws), L: median(ls), n: ws.length } : { W: 0, L: 1, n: 0 }
+    if (!needFixed() || fixed) return false
+    for (let i = PMIN; i <= PMAX; i++) if (!meas.get(frames[i])) return false
+    fixed = Object.fromEntries(FINGERS.map(f => {
+      const ws: number[] = [], ls: number[] = []
+      for (let i = PMIN; i <= PMAX; i++) { const q = meas.get(frames[i])[f]; if (q.w != null) { ws.push(q.w); ls.push(jlen(f, i)) } }
+      return [f, ws.length ? { W: median(ws), L: median(ls), n: ws.length } : { W: 0, L: 1, n: 0 }]
+    }))
     return true
   }
   const masks = new Map<string, SkinMask>(), meas = new Map<string, any>(), inflight = new Map<string, Promise<void>>()
@@ -202,7 +284,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     return p
   }
   function wantMask() { if (DEBUG) ensureMask(cur) }
-  async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && (DEBUG || T.measured) && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
+  async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && (DEBUG || needFixed()) && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
   function report() { if (els.onInfo) (T.measured ? reportMine : reportDemo)(els.onInfo) }
   // 내 영상: 폭 재는 중 / 실패 / (디버그) 고정 폭과 반지 크기
   // 손가락별: 재생 구간에서 양쪽 경계가 잡힌 프레임들의 폭 가운데값(잰 프레임 수)
@@ -217,9 +299,10 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const total = PMAX - PMIN + 1; let done = 0
     for (let i = PMIN; i <= PMAX; i++) if (meas.get(frames[i])) done++
     if (!fixed) { say(`약지 폭 재는 중 ${done}/${total}`); return }
-    if (!fixed.n) { say('약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)'); return }
+    const fr = fixed.ring
+    if (!fr.n) { say('약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)'); return }
     if (!DEBUG) { say(''); return }
-    say(`잰 프레임 ${fixed.n}/${total} · 고정 폭 ${fixed.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px
+    say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px
 ${fingerLine()}`)
   }
   // 예시 손: (디버그) 잰 폭 가운데값만 보여줌. 반지 크기에는 쓰지 않음
@@ -242,7 +325,7 @@ ${fingerLine()}`)
 
   // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐
   let slideT = 0
-  function slideHead() { const head = S.head, u = head && head.userData; if (!u || !u.slide || !u.q0) return; head.quaternion.copy(u.q0).premultiply(new THREE.Quaternion().setFromAxisAngle(u.axis, u.amp * Math.sin(slideT * 0.9))) }
+  function slideHead(head) { const u = head && head.userData; if (!u || !u.slide || !u.q0) return; head.quaternion.copy(u.q0).premultiply(new THREE.Quaternion().setFromAxisAngle(u.axis, u.amp * Math.sin(slideT * 0.9))) }
 
   function pickRing(i) {
     if (i === S.CI && S.ring) return
@@ -258,13 +341,13 @@ ${fingerLine()}`)
     const tk = new THREE.DirectionalLight(0xffffff, 1.3 * LI); tk.position.set(-0.4, 1, 0.8); tScene.add(tk)
     const tCam = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100); tCam.position.z = 50
     const SZ = 136, pr = renderer.getPixelRatio(), tc = document.createElement('canvas'); tc.width = tc.height = SZ; const tx = tc.getContext('2d')
-    const keep = { CI: S.CI, WMM: S.WMM, WALL: S.WALL, METAL: S.METAL, PAVE: S.PAVE, GW: S.GW, GEM: S.GEM }; S.scene = tScene; clip.set(new THREE.Vector3(0, 0, 1), 1000)
+    THUMBING = true; const keep = { CI: S.CI, WMM: S.WMM, WALL: S.WALL, METAL: S.METAL, PAVE: S.PAVE, GW: S.GW, GEM: S.GEM }; S.scene = tScene; clip.set(new THREE.Vector3(0, 0, 1), 1000)
     renderer.setScissorTest(true); renderer.setViewport(0, 0, SZ / pr, SZ / pr); renderer.setScissor(0, 0, SZ / pr, SZ / pr); renderer.toneMappingExposure = 1.3
     const axis = new THREE.Vector3(0, 0.62, 0.78).normalize()
     CAT.forEach((c, i) => {
       S.CI = i; S.WMM = c.defaultWidth; S.WALL = c.wall; S.METAL = c.metal; S.PAVE = c.id === 'IC' ? 'semi' : 'none'; S.GW = 0; if (c.gem) S.GEM = c.gem; rebuild()
       const Rin = 0.58, pxmm = Rin / (S.FD / 2), pos = new THREE.Vector3(0, c.id === 'SOL' || c.id === 'ND' ? -0.25 : -0.05, 0), { qR, qH } = frameFor(axis, new THREE.Vector3(0, 0.78, -0.62), 0)
-      setRing(S.ring, qR, pos, Rin, S.WMM * pxmm, axis, 0, paveCfg())
+      setRing(S.ring, qR, pos, Rin, S.WMM * pxmm, axis, 0, paveCfgOf(S))
       const head = S.head
       if (head) { head.quaternion.copy(qH); head.position.copy(pos); head.scale.setScalar(pxmm); head.visible = true }
       renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(tScene, tCam)
@@ -272,7 +355,7 @@ ${fingerLine()}`)
     })
     dispose(S.ring); dispose(S.ring2); S.ring = S.ring2 = null; if (S.head) { tScene.remove(S.head); S.head = null }
     S.scene = mainScene; renderer.setScissorTest(false); renderer.setViewport(0, 0, IW, IH)
-    Object.assign(S, keep)
+    Object.assign(S, keep); THUMBING = false
     return thumbs
   }
 
@@ -281,13 +364,13 @@ ${fingerLine()}`)
   let lastTw = 0, raf = 0
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle)
-    if (AUTO && !document.hidden && dragX === null && now > resumeAt && now - lastPlay > 100) {
+    if (AUTO && !PICKF && !document.hidden && dragX === null && now > resumeAt && now - lastPlay > 100) {
       lastPlay = now; let n = cur + playDir
       if (n < PMIN || n > PMAX) { playDir = -playDir; n = Math.max(PMIN, Math.min(PMAX, cur + playDir)) }
       show(n)
     }
-    if (document.hidden || now - lastTw < 66 || !S.MASK) return; lastTw = now; const t = now / 1000, head = S.head;
-    [S.ring, S.ring2].forEach(g => {
+    if (document.hidden || now - lastTw < 66 || !MASKS.length) return; lastTw = now; const t = now / 1000, os = SLOTS.map(sl => sl.objs).filter(Boolean);
+    os.flatMap(o => [o.ring, o.ring2]).forEach(g => {
       if (!g) return; const s = g.userData.stones; if (!s.visible || !s.count) return
       for (let c = 0; c < s.count; c++) {
         const ph = (Math.abs(Math.sin(c * 12.9898) * 43758.5453) % 1) * TAU, base = 0.45 + 0.4 * ((Math.abs(Math.sin(c * 7.13) * 9137.1) % 1))
@@ -295,10 +378,13 @@ ${fingerLine()}`)
       }
       s.instanceColor.needsUpdate = true
     })
-    if (head && head.userData.slide) { slideT = t; slideHead() }
-    if (head && head.userData.gem && !head.userData.slide) { const gm = head.userData.gem; gm.rotation.y = 0.06 * Math.sin(t * 0.7); gm.rotation.x = 0.04 * Math.sin(t * 1.1) }
+    slideT = t
+    os.forEach(({ head }) => {
+      if (head && head.userData.slide) slideHead(head)
+      if (head && head.userData.gem && !head.userData.slide) { const gm = head.userData.gem; gm.rotation.y = 0.06 * Math.sin(t * 0.7); gm.rotation.x = 0.04 * Math.sin(t * 1.1) }
+    })
     key.position.set(-0.4 + 0.35 * Math.sin(t * 0.5), 1, 0.8 + 0.2 * Math.cos(t * 0.4))
-    renderer.render(S.scene, cam); composite(); shadow()
+    renderMain(); composite(); shadow()
   }
 
   setHand(hand); const thumbs = makeThumbs(); rebuild(); show()
@@ -321,7 +407,10 @@ ${fingerLine()}`)
     setDebug(on: boolean) { DEBUG = on; if (on) { warm(); wantMask() } report(); drawDebug() },
     setPlaying(on: boolean) { AUTO = on; resumeAt = 0 },
     setZoom(on: boolean) { zoom = on; renderer.setPixelRatio(on ? 3 : Math.min(2, window.devicePixelRatio || 1)); renderer.setSize(IW, IH, false); show() },
-    setHo(ho: number) { S.HO = ho; S.FD = (40 + ho) / Math.PI; rebuild(); show() },
-    stop() { removeEventListener('resize', applyZoom); cancelAnimationFrame(raf); dispose(S.ring); dispose(S.ring2); if (S.head) { S.scene.remove(S.head); S.head = null }; S.ring = S.ring2 = null },
+    setHo(ho: number) { S.HO = ho; S.FD = (40 + ho) / Math.PI; const keepAI = AI; SLOTS.forEach((_, i) => { activate(i); rebuild() }); activate(keepAI); show() },   // 끼운 반지 모두 새 호수로 다시 만듦
+    // 끼운 반지(슬롯)
+    slots: slotList,
+    switchSlot, addSlot, removeSlot, setPick,
+    stop() { removeEventListener('resize', applyZoom); cancelAnimationFrame(raf); SLOTS.forEach(({ objs: o }) => { if (!o) return; dispose(o.ring); dispose(o.ring2); if (o.head) S.scene.remove(o.head) }); SLOTS.length = 0; S.ring = S.ring2 = S.head = null },
   }
 }

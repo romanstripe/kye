@@ -1,7 +1,7 @@
 // @ts-nocheck  (조명·배치·합성·반짝임)
 import * as THREE from 'three'
-import { S, M, H, TAU, IW, IH, LI, cv, renderer, mainScene, cam, pmg, clip } from './shared.ts'
-import { GEMS, NUDO_GEMS, makeHead } from './sol.ts'
+import { S, H, TAU, IW, IH, LI, cv, renderer, mainScene, cam, clip } from './shared.ts'
+import { NUDO_GEMS, makeHead } from './sol.ts'
 import { makeRing, TW } from './makeRing.ts'
 import { layoutStones } from './layoutStones.ts'
 import { skinMask } from '../hand/skin.ts'
@@ -14,7 +14,7 @@ import { drawHandDebug } from './debugDraw.ts'
 import { smoothLandmarks } from '../hand/smooth.ts'
 
 // public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
-export type PaveOpt = { label: string; byWidth: Record<string, any> }
+type PaveOpt = { label: string; byWidth: Record<string, any> }
 export type RingInfo = {
   id: string; name: string; sub: string; widths: number[]; widthLabels?: Record<string, string>; defaultWidth: number
   wall: number; metal: string | null; diy: boolean; rimColor: boolean; gemPick: boolean; gem: string | null
@@ -22,7 +22,7 @@ export type RingInfo = {
 }
 // frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
 export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number; custom?: boolean }
-export type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void; onSlots?: (list: { id: string; active: boolean; finger: string }[]) => void; onHints?: (list: { f: string; name: string; x: number; y: number }[]) => void }
+type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void; onSlots?: (list: { id: string; active: boolean; finger: string }[]) => void; onHints?: (list: { f: string; name: string; x: number; y: number }[]) => void }
 
 
 

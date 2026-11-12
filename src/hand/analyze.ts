@@ -13,7 +13,7 @@ const MIN_FOUND = 8 // 손이 이만큼도 안 잡히면 실패로 보고 예시
 export const WASM = { wasmLoaderPath: wasmLoader, wasmBinaryPath: wasmBinary }
 
 let landmarker: Promise<HandLandmarker> | null = null
-export function getLandmarker() {
+function getLandmarker() {
   landmarker ??= (async () => {
     const { HandLandmarker } = await import('@mediapipe/tasks-vision')
     const wasm = WASM
@@ -78,7 +78,7 @@ function smooth(rows: number[][]) {
 }
 
 // 프레임별 손 좌표(못 찾은 곳은 null) → 앱이 쓰는 형식. 손이 거의 안 잡히면 던짐
-export function buildHand(frames: string[], found: (number[][] | null)[]): HandData {
+function buildHand(frames: string[], found: (number[][] | null)[]): HandData {
   const ok = found.flatMap((l, i) => (l ? [i] : []))
   if (ok.length < MIN_FOUND) throw new Error('손을 찾지 못했어요')
   const pmin = ok[0], pmax = ok[ok.length - 1]

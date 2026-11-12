@@ -21,7 +21,7 @@ const NEIGH: Record<Finger, { pos: Finger; neg: Finger | null; k: number }> = {
   pinky: { pos: 'ring', neg: null, k: 1.5 },
 }
 
-export function measureFinger(L, m: SkinMask, f: Finger) {
+function measureFinger(L, m: SkinMask, f: Finger) {
   const [ia, ib] = JOINT[f], a = L[ia], b = L[ib], c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
   const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]
   const { pos, neg, k } = NEIGH[f]

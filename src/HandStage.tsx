@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { createStage } from './three/stage.ts'
 import type { RingInfo, HandData } from './three/stage.ts'
 import { analyzeVideo, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
-import { FINGERS, FINGER_NAME } from './hand/width.ts'
-import type { Finger } from './hand/width.ts'
+import HoPicker from './HoPicker.tsx'
+import FingerHints from './FingerHints.tsx'
+import type { Hint } from './FingerHints.tsx'
+import WornPanel from './WornPanel.tsx'
+import type { Slot } from './WornPanel.tsx'
 
 export type Menu = {
   rings: RingInfo[]
@@ -13,9 +16,6 @@ export type Menu = {
   state: () => Record<string, any>
   set: (patch: Record<string, any>) => void
 }
-
-// 내 호수 5~25호, 0.5 단위
-const HOS = Array.from({ length: 41 }, (_, i) => 5 + i * 0.5)
 
 const IW = 480
 const IH = 854
@@ -39,18 +39,13 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
   const [playing, setPlaying] = useState(true)
   const [zoom, setZoom] = useState(false)
   const [setOpen, setSetOpen] = useState(false)   // 반지 세트 패널 열림
-  const [slots, setSlots] = useState<{ id: string; active: boolean; finger: string }[]>([])   // 끼운 반지들
+  const [slots, setSlots] = useState<Slot[]>([])   // 끼운 반지들
   const [pick, setPick] = useState(false)   // 반지 낄 손가락 고르는 중
-  const [hints, setHints] = useState<{ f: string; name: string; x: number; y: number }[]>([])   // 손가락마다 ＋ 점 자리(px)
+  const [hints, setHints] = useState<Hint[]>([])   // 손가락마다 ＋ 점 자리(px)
   const active = useRef(onActiveRing)
   active.current = onActiveRing
-  const worn = useRef<HTMLDivElement>(null)
   const ringsRef = useRef<RingInfo[]>([])
   const setBtn = useRef<HTMLButtonElement>(null)
-  const [ho, setHo] = useState(17.5)
-  const [hoOpen, setHoOpen] = useState(false)
-  const hoBtn = useRef<HTMLButtonElement>(null)
-  const hoPop = useRef<HTMLDivElement>(null)
   const ready = useRef(onReady)
   ready.current = onReady
 
@@ -87,30 +82,6 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
       if (mine.current) revokeHand(mine.current)
     }
   }, [])
-
-  // 호수 목록: 열 때 고른 호수가 가운데 오게, 바깥을 누르면 닫힘
-  useEffect(() => {
-    if (!hoOpen) return
-    const on = hoPop.current?.querySelector<HTMLElement>('[aria-selected="true"]')
-    if (on && hoPop.current) hoPop.current.scrollTop = on.offsetTop - hoPop.current.clientHeight / 2 + 18
-    const close = (e: PointerEvent) => {
-      const t = e.target as Node
-      if (!hoPop.current?.contains(t) && !hoBtn.current?.contains(t)) setHoOpen(false)
-    }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
-  }, [hoOpen])
-
-  useEffect(() => {
-    if (!setOpen) return
-    const close = (e: PointerEvent) => {
-      const t = e.target as Node
-      if (pick) return
-      if (!worn.current?.contains(t) && !setBtn.current?.contains(t)) setSetOpen(false)
-    }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
-  }, [setOpen, pick])
 
   const choose = (v: boolean) => {   // 손가락 고르기 켜기/끄기 (켜면 영상 멈춤)
     setPick(v)
@@ -167,90 +138,29 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
           <canvas ref={out} />
           <canvas ref={dbg} width={IW * 2} height={IH * 2} />
           {pick && (
-            <div className="hints">
-              {hints.map((h) => (
-                <button
-                  key={h.f}
-                  type="button"
-                  className="hint"
-                  aria-label={`${h.name}에 끼기`}
-                  style={{ left: `${(h.x / IW) * 100}%`, top: `${(h.y / IH) * 100}%` }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => {
-                    choose(false)
-                    stageRef.current?.addSlot(h.f)
-                  }}
-                >
-                  ＋<span>{h.name}</span>
-                </button>
-              ))}
-            </div>
+            <FingerHints
+              hints={hints}
+              onPick={(f) => {
+                choose(false)
+                stageRef.current?.addSlot(f)
+              }}
+            />
           )}
         </div>
       </div>
       {pick && <div className="toast">반지 낄 손가락을 눌러 주세요</div>}
-      <div ref={worn} id="worn" className={`stack${setOpen ? ' open' : ''}`} aria-label="끼운 반지 (위가 손톱 쪽)">
-        {(() => {
-          const act = slots.find((s) => s.active)
-          const used = FINGERS.filter((f) => slots.some((s) => s.finger === f))
-          const mine = slots.map((sl, i) => ({ ...sl, i })).filter((s) => s.finger === (act?.finger ?? 'ring')).reverse()   // 지금 손가락의 층만, 위 = 손톱 쪽
-          return (
-            <>
-              {used.length > 1 && (
-                <div className="fsw">
-                  {used.map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      aria-pressed={f === act?.finger}
-                      onClick={() => {
-                        const l = slots.map((s, i) => ({ ...s, i })).filter((s) => s.finger === f)
-                        stageRef.current?.switchSlot(l[l.length - 1].i)
-                      }}
-                    >
-                      {FINGER_NAME[f]}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {slots.length < 8 && (
-                <button type="button" className="addl" aria-label="반지 하나 더 끼기" aria-pressed={pick} onClick={() => choose(!pick)}>
-                  ＋
-                </button>
-              )}
-              {mine.map(({ id, active: on, i, finger }) => {
-                const name = ringsRef.current.find((r) => r.id === id)?.name ?? id
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    className="lay"
-                    aria-pressed={on}
-                    aria-label={`${FINGER_NAME[finger as Finger]} ${name}`}
-                    onClick={() => stageRef.current?.switchSlot(i)}
-                  >
-                    <img alt="" src={(stageRef.current?.thumbs as Record<string, string> | undefined)?.[id] ?? ''} />
-                    {on && slots.length > 1 && (
-                      <span
-                        className="x"
-                        role="button"
-                        aria-label="이 반지 빼기"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          stageRef.current?.removeSlot(i)
-                        }}
-                      >
-                        ✕
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-              {used.length === 1 && used[0] !== 'ring' && <span className="lbl">{FINGER_NAME[used[0]]}</span>}
-            </>
-          )
-        })()}
-      </div>
+      <WornPanel
+        open={setOpen}
+        slots={slots}
+        rings={ringsRef.current}
+        thumbs={(stageRef.current?.thumbs ?? {}) as Record<string, string>}
+        pick={pick}
+        ignore={setBtn}
+        onClose={() => setSetOpen(false)}
+        onSwitch={(i) => stageRef.current?.switchSlot(i)}
+        onRemove={(i) => stageRef.current?.removeSlot(i)}
+        onTogglePick={() => choose(!pick)}
+      />
       <div className="tools">
         <button
           ref={setBtn}
@@ -262,41 +172,7 @@ export default function HandStage({ onReady, onActiveRing }: { onReady: (m: Menu
           반지 세트
           {slots.length > 1 && <span className="cnt">{slots.length}</span>}
         </button>
-        <button
-          ref={hoBtn}
-          type="button"
-          className="chip pick"
-          aria-haspopup="listbox"
-          aria-expanded={hoOpen}
-          onClick={() => setHoOpen((o) => !o)}
-        >
-          <span>내 호수</span> <b>{ho}호</b>
-        </button>
-        {hoOpen && (
-          <div
-            ref={hoPop}
-            className="hopop"
-            role="listbox"
-            aria-label="내 반지 호수"
-            style={{ top: (hoBtn.current?.getBoundingClientRect().bottom ?? 0) + 6, left: hoBtn.current?.getBoundingClientRect().left ?? 0 }}
-          >
-            {HOS.map((v) => (
-              <button
-                key={v}
-                type="button"
-                role="option"
-                aria-selected={v === ho}
-                onClick={() => {
-                  stageRef.current?.setHo(v)
-                  setHo(v)
-                  setHoOpen(false)
-                }}
-              >
-                {v}호
-              </button>
-            ))}
-          </div>
-        )}
+        <HoPicker onChange={(v) => stageRef.current?.setHo(v)} />
         <button
           className="chip"
           hidden

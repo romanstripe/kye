@@ -15,7 +15,7 @@ function band(y0,h,tR,pattern,mat,rows=24,pe=0.55){
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
   return new THREE.Mesh(g,mat);}
 // 파베 알: 보석 전용 반사로 반짝이게
-export const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.5,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.4,clippingPlanes:[clip]});
+const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.5,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.4,clippingPlanes:[clip]});
 // 파베 알 한 개: 브릴리언트처럼 테이블·크라운·파빌리온이 있는 깎인 모양
 const stoneGeo=(()=>{const g0=new THREE.LatheGeometry([new THREE.Vector2(0.001,-0.75),new THREE.Vector2(1,0),new THREE.Vector2(1,0.06),new THREE.Vector2(0.84,0.2),new THREE.Vector2(0.48,0.34),new THREE.Vector2(0.001,0.34)],12).toNonIndexed();
   // 면마다 밝고 어두움을 번갈아 칠해 다이아의 화살 무늬처럼 빛이 갈라지게 (흰 원판처럼 보이지 않게)
@@ -26,7 +26,7 @@ const beadGeo=new THREE.SphereGeometry(1,8,6);   // 알을 잡는 작은 금속 
 const caps=(g,t,k,mat)=>{[-H/2,H/2].forEach(y=>{const r=new THREE.RingGeometry(1.0,1+t*k,128);r.rotateX(Math.PI/2);const c=new THREE.Mesh(r,mat);c.position.y=y;g.add(c);});
   g.add(new THREE.Mesh(new THREE.CylinderGeometry(1,1,H,128,1,true),mat));};
 // 세르펜토 비늘: 경계선이 번갈아 기울어 비늘 하나는 위가 넓고 다음 것은 아래가 넓은 사다리꼴
-export function spScale(W,R){const p=W*0.78, n=2*Math.round(TAU*R/p/2); return {n,p:TAU*R/n,sl:0.42};}
+function spScale(W,R){const p=W*0.78, n=2*Math.round(TAU*R/p/2); return {n,p:TAU*R/n,sl:0.42};}
 export function spB(sc,k,v){return k+(k%2?-1:1)*sc.sl*(v-0.5);}
 export function spAt(sc,th,v){const u=wrap(th)/TAU*sc.n; let k=Math.floor(u); if(u<spB(sc,k,v))k--; else if(u>=spB(sc,k+1,v))k++;
   const a=spB(sc,k,v), b=spB(sc,k+1,v); return {k:((k%sc.n)+sc.n)%sc.n, dmm:Math.min(u-a,b-u)*sc.p, cu:(u-(a+b)/2)/((b-a)/2), a, b};}
@@ -34,7 +34,6 @@ export function spAt(sc,th,v){const u=wrap(th)/TAU*sc.n; let k=Math.floor(u); if
 export function mvDims(){const pv=S.PAVE!=='none', big=S.WMM>5;
   if(big){const r=pv?0.65:0.6; return {a:13.9/2-r,b:5.8/2-r,r,rb:0.8,D:2.6};}   // 라지: 13.9×5.8, 0.06ct ≈ 2.6mm (파베 라지는 치수 미공개 → 같은 크기로)
   const r=pv?0.5:0.45, L=pv?12:10.3, Wd=pv?4.5:4.6; return {a:L/2-r,b:Wd/2-r,r,rb:0.6,D:pv?2.2:1.4};}   // 스몰: 10.3×4.6, 0.01ct ≈ 1.4mm / 파베 스몰 12×4.5
-export function mvOff(th){const d=Math.abs(wrap(th-Math.PI/2+Math.PI)-Math.PI), d0=0.35, d1=1.25; return d<d0?1:d>d1?0:Math.cos(Math.PI/2*(d-d0)/(d1-d0))**2;}
 // ---- 반지 만들기. 모두 비슷하지만 똑같지 않은 자체 디자인
 export function makeRing(style,wall,metal,W){
   const t=wall/(S.FD/2), R=S.FD/2, g=new THREE.Group(); let tR=t, pe=0.55;

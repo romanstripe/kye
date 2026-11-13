@@ -6,7 +6,8 @@ import * as THREE from 'three'
 THREE.ColorManagement.enabled = false
 export const LI = Math.PI   // 점광/방향광/주변광 세기에 곱함
 
-export const IW = 480, IH = 854
+import { IW, IH } from '../constants.ts'
+export { IW, IH }
 export const TAU = Math.PI * 2
 export const H = 0.62
 export const wrap = (a) => ((a % TAU) + TAU) % TAU

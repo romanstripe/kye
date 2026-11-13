@@ -21,7 +21,11 @@ import type { SkinMask } from "../hand/skin.ts";
 import { makeSlider, makeNudo } from "./heads.ts";
 import { STORE_ENV } from "./lights.ts";
 import { SEGS, occ, JI, occJ } from "./occluders.ts";
-import { measure, median, FINGERS, FINGER_NAME, JOINT } from "../hand/width.ts";
+import { measure, FINGERS, FINGER_NAME, JOINT } from "../hand/width.ts";
+import { computeFixed } from "../hand/fixed.ts";
+import { ringPoseOf } from "../hand/pose.ts";
+import type { Fixed } from "../hand/fixed.ts";
+import { fingerLine as fingerLineOf, whyLine as whyLineOf } from "../hand/report.ts";
 import { drawHandDebug } from "./debugDraw.ts";
 import { smoothLandmarks } from "../hand/smooth.ts";
 
@@ -402,10 +406,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
       );
     return { qR, qH };
   }
-  // 손가락별 반지 자리 [cx,cy,cz, 축 x,y,z, 반지 안쪽 반지름(px)]. 축은 화면에서의 손가락 방향(시작 관절→다음 관절)이고 앞뒤 기울기는 없음(z=0). 폭을 아직 못 쟀으면 null
-  //  - 방향 = 관절 방향, 크기 = 그 손가락 고정 폭 × (이 프레임 관절 길이 ÷ 잰 프레임들 길이)
-  //  - 중심 = 시작 관절→다음 관절 위의 자리 r (0~1): 갈라지는 곳 + (반지 폭/2 + 1.5mm) 위, 갈라지는 곳을 못 찾았으면 0.6
-  //    (mm는 지금 잰 px/mm = 2·fr/FD)
+  // 손가락별 관절 길이(px): 프레임 i 의 5프레임 평균 점에서 시작 관절→다음 관절의 화면 거리
   const jlen = (f, i) => {
     const L = SM[i];
     if (!L) return 0;
@@ -413,40 +414,10 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     return Math.hypot(L[b][0] - L[a][0], L[b][1] - L[a][1]);
   };
   function poseOf(f) {
-    // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산. 원래 점(LMS)은 폭 재기·디버그 그리기용
+    // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산 (hand/pose.ts). 원래 점(LMS)은 폭 재기·디버그 그리기용
     const L = SM[cur];
     if (!L) return null;
-    const [ia, ib] = JOINT[f],
-      a = L[ia],
-      b = L[ib];
-    const fx = fixed?.[f],
-      len = jlen(f, cur);
-    if (!(fx && fx.n && len > 0)) return null;
-    const jd = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1,
-      sh = fx.O * len; // 피부 가운데로 옆 이동 (축에 수직)
-    const fr = (fx.W * len) / fx.L / 2;
-    const r =
-      fx.T != null
-        ? Math.min(
-            1.15,
-            (fx.T * len +
-              (((SLOTS.find((sl) => sl.st.FINGER === f)?.st.WMM ?? 0) / 2 +
-                1.5) *
-                2 *
-                fr) /
-                S.FD) /
-              len,
-          )
-        : 0.6;
-    return [
-      a[0] + (b[0] - a[0]) * r - ((b[1] - a[1]) / jd) * sh,
-      a[1] + (b[1] - a[1]) * r + ((b[0] - a[0]) / jd) * sh,
-      a[2] + (b[2] - a[2]) * r,
-      (b[0] - a[0]) / jd,
-      (b[1] - a[1]) / jd,
-      0,
-      fr,
-    ];
+    return ringPoseOf(f, L, fixed?.[f], SLOTS.find((sl) => sl.st.FINGER === f)?.st.WMM ?? 0, S.FD);
   }
   function hideAll() {
     SLOTS.forEach(({ objs: o }) => {
@@ -726,58 +697,14 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
   // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
   let DEBUG = false;
-  let fixed: Record<
-    string,
-    { W: number; L: number; n: number; O: number; T: number | null }
-  > | null = null; // 손가락별 고정 폭(px), 잰 프레임들의 관절 길이(px), 잰 프레임 수, 옆 어긋남, 갈라지는 곳 위치(관절 길이 대비, 없으면 null)
+  let fixed: Fixed | null = null; // 손가락별 고정 폭 등 (hand/fixed.ts)
   let usedW: number | null = null,
     outerPx: number | null = null;
-  // 재생 구간을 다 재고 나면, 손가락마다 양쪽 경계가 다 잡힌 프레임들의 폭 가운데값을 하나로 고정
+  // 재생 구간을 다 재고 나면 손가락마다 폭 등을 하나로 고정 (계산은 hand/fixed.ts). 이번에 처음 고정됐으면 true
   function refix() {
     if (fixed) return false;
-    for (let i = PMIN; i <= PMAX; i++) if (!meas.get(frames[i])) return false;
-    fixed = Object.fromEntries(
-      FINGERS.map((f) => {
-        const ws: number[] = [],
-          ls: number[] = [],
-          os: number[] = [],
-          ts: number[] = [];
-        const [ja, jb] = JOINT[f];
-        for (let i = PMIN; i <= PMAX; i++) {
-          const q = meas.get(frames[i])[f];
-          if (q.webT != null) ts.push(q.webT);
-          if (q.w == null) continue;
-          ws.push(q.w);
-          ls.push(jlen(f, i));
-          // 잰 피부 경계의 가운데가 관절 축에서 옆으로 얼마나 벗어났는지 (관절 길이 대비, 축에 수직 방향 기준)
-          const L = LMS[i];
-          if (!L) continue;
-          const dx = L[jb][0] - L[ja][0],
-            dy = L[jb][1] - L[ja][1],
-            d = Math.hypot(dx, dy) || 1;
-          os.push(
-            (((q.A[0] + q.B[0]) / 2 - q.c[0]) * -dy +
-              ((q.A[1] + q.B[1]) / 2 - q.c[1]) * dx) /
-              d /
-              d,
-          );
-        }
-        const tw = ts.length >= 3 ? median(ts) : null; // 갈라지는 곳이 3프레임 이상에서 잡혀야 믿음
-        return [
-          f,
-          ws.length
-            ? {
-                W: median(ws),
-                L: median(ls),
-                n: ws.length,
-                O: os.length ? median(os) : 0,
-                T: tw,
-              }
-            : { W: 0, L: 1, n: 0, O: 0, T: tw },
-        ];
-      }),
-    );
-    return true;
+    fixed = computeFixed(meas, frames, LMS, jlen, PMIN, PMAX);
+    return !!fixed;
   }
   const masks = new Map<string, SkinMask>(),
     meas = new Map<string, any>(),
@@ -825,38 +752,9 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let fingerMemo: { n: number; txt: string } | null = null; // 측정 개수가 같으면 다시 계산하지 않음 (끝나면 그대로)
   function fingerLine() {
     if (fingerMemo && fingerMemo.n === meas.size) return fingerMemo.txt;
-    const txt = FINGERS.map((f) => {
-      const ws: number[] = [];
-      for (let i = PMIN; i <= PMAX; i++) {
-        const q = meas.get(frames[i])?.[f];
-        if (q?.w != null) ws.push(q.w);
-      }
-      return `${FINGER_NAME[f]} ${ws.length ? median(ws).toFixed(1) : "-"}(${ws.length})`;
-    }).join(" · ");
+    const txt = fingerLineOf(meas, frames, PMIN, PMAX);
     fingerMemo = { n: meas.size, txt };
     return txt;
-  }
-  // 약지·소지가 제외된 프레임의 이유별 개수 (재생 구간)
-  function whyLine() {
-    return ["ring", "pinky"]
-      .map((f) => {
-        const t: Record<string, number> = {};
-        let n = 0;
-        for (let i = PMIN; i <= PMAX; i++) {
-          const q = meas.get(frames[i])?.[f];
-          if (q && q.w == null) {
-            n++;
-            t[q.why ?? "?"] = (t[q.why ?? "?"] || 0) + 1;
-          }
-        }
-        return n
-          ? `
-${FINGER_NAME[f]} 제외 ${n}: ${Object.entries(t)
-              .map(([k, v]) => `${k} ${v}`)
-              .join(", ")}`
-          : "";
-      })
-      .join("");
   }
   const msLine = () =>
     drawMs.length
@@ -880,7 +778,7 @@ ${FINGER_NAME[f]} 제외 ${n}: ${Object.entries(t)
       return;
     }
     say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : "-"}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : "-"}px
-${fingerLine()}${whyLine()}${msLine()}`);
+${fingerLine()}${whyLineOf(meas, frames, PMIN, PMAX)}${msLine()}`);
   }
   function drawDebug() {
     const cv2 = els.debug;
@@ -1008,10 +906,9 @@ ${fingerLine()}${whyLine()}${msLine()}`);
     return thumbs;
   }
 
-  // 가만히 있어도 반짝이게: 파베 알이 하나씩 반짝이고, 큰 알과 조명이 아주 살짝 움직임 (초당 15번)
+  // 재생 프레임이 바뀔 때마다 파베 알 반짝임과 큰 알의 미세한 흔들림을 갱신 (조명 움직임·따로 다시 그리기는 없음)
   // 손 영상 자동 재생: 앞뒤로 계속 왕복 (초당 10장). 손으로 끌면 멈췄다가 1.5초 뒤 다시 돎
   let lastTw = 0,
-    lastRep = 0,
     raf = 0;
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle);
@@ -1063,20 +960,6 @@ ${fingerLine()}${whyLine()}${msLine()}`);
         gm.rotation.x = 0.04 * Math.sin(t * 1.1);
       }
     });
-    key.position.set(
-      -0.4 + 0.35 * Math.sin(t * 0.5),
-      1,
-      0.8 + 0.2 * Math.cos(t * 0.4),
-    );
-    const t0 = performance.now();
-    renderMain();
-    composite();
-    shadow();
-    lap(t0);
-    if (DEBUG && now - lastRep > 500) {
-      lastRep = now;
-      report();
-    }
   }
 
   setHand(hand);

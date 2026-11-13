@@ -1,15 +1,16 @@
-// 영상 파일 → canvas로 40장 자르기 → MediaPipe로 프레임마다 손 좌표(21점) → 데모와 같은 P/LMS 형식으로.
-// 좌표는 480×854 화면 기준 px, z는 x와 같은 배율(×480). 원본 데모 와 같은 규칙.
+// 영상 파일(또는 촬영한 프레임) → 40장 → MediaPipe로 프레임마다 손 좌표(21점) → 앱이 쓰는 P/LMS 형식으로.
+// 좌표는 480×854 화면 기준 px, z는 x와 같은 배율(×480).
 import type { HandLandmarker } from '@mediapipe/tasks-vision'
 import wasmLoader from '@mediapipe/tasks-vision/vision_wasm_internal.js?url'
 import wasmBinary from '@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'
 import type { HandData } from '../three/stage.ts'
+import { IW, IH } from '../constants.ts'
 
 export const FRAME_COUNT = 40
-const IW = 480
-const IH = 854
 const SS = 2 // 사진은 2배 크기(960×1708)로 저장해서 선명하게. 좌표는 0~1 비율이라 그대로 IW×IH 기준
 const MIN_FOUND = 8 // 손이 이만큼도 안 잡히면 실패로 봄 (다시 찍게 안내)
+
+type Progress = (done: number, total: number, stage?: string) => void
 
 export const WASM = { wasmLoaderPath: wasmLoader, wasmBinaryPath: wasmBinary }
 
@@ -63,7 +64,7 @@ function ringPose(L: number[][]) {
   return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2, sx / n3, sy / n3, sz / n3, 0.31 * n2]
 }
 
-// 프레임 사이 떨림을 줄이는 5점 평균 (원본 데모 와 같은 [1,2,3,2,1])
+// 프레임 사이 떨림을 줄이는 5점 평균 ([1,2,3,2,1])
 function smooth(rows: number[][]) {
   const k = [1, 2, 3, 2, 1], n = rows.length
   return rows.map((_, i) => {
@@ -93,11 +94,36 @@ function buildHand(frames: string[], found: (number[][] | null)[]): HandData {
   return { N: found.length, P, LMS, frames, pmin, pmax }
 }
 
-export async function analyzeVideo(file: File, onProgress: (done: number, total: number, stage?: string) => void): Promise<HandData> {
+// 프레임을 한 장씩 가져와(grab: 480×854 작은 캔버스에 그리고 프레임 주소를 돌려줌) 손을 찾음. 영상·촬영 프레임 공통
+// 손 찾기는 작은 캔버스로 (큰 사진을 매번 넘기면 폰에서 메모리가 많이 듦)
+async function scan(lm: HandLandmarker, count: number, onProgress: Progress, grab: (i: number, dctx: CanvasRenderingContext2D) => Promise<string>): Promise<HandData> {
+  const dc = document.createElement('canvas')
+  dc.width = IW
+  dc.height = IH
+  const dctx = dc.getContext('2d')!
+  const frames: string[] = []
+  const found: (number[][] | null)[] = []
+  try {
+    for (let i = 0; i < count; i++) {
+      frames.push(await grab(i, dctx))
+      const l = lm.detect(dc).landmarks[0]
+      found.push(l ? l.map((p) => [p.x * IW, p.y * IH, p.z * IW]) : null)
+      onProgress(i + 1, count)
+      await new Promise((r) => setTimeout(r)) // 진행 표시가 갱신되게 한 번 쉼
+    }
+    return buildHand(frames, found)
+  } catch (e) {
+    frames.forEach((u) => URL.revokeObjectURL(u))
+    throw e
+  } finally {
+    dc.width = dc.height = 0 // 캔버스 메모리 바로 반납
+  }
+}
+
+export async function analyzeVideo(file: File, onProgress: Progress): Promise<HandData> {
   onProgress(0, FRAME_COUNT, '손 인식 모델 불러오는 중')
   const lm = await timeout(getLandmarker(), 40000, '손 인식 모델을 불러오지 못했어요')
   const src = URL.createObjectURL(file)
-  const frames: string[] = []
   let cleanup = () => {}
   try {
     const v = document.createElement('video')
@@ -127,39 +153,20 @@ export async function analyzeVideo(file: File, onProgress: (done: number, total:
     const { videoWidth: vw, videoHeight: vh, duration } = v
     if (!vw || !vh || !isFinite(duration) || duration <= 0) throw new Error('영상을 읽지 못했어요')
 
-    const c = document.createElement('canvas')
-    c.width = IW * SS
-    c.height = IH * SS
-    const ctx = c.getContext('2d')!
-    // 손 찾기는 작은 캔버스로 (큰 사진을 매번 넘기면 폰에서 메모리가 많이 듦)
-    const dc = document.createElement('canvas')
-    dc.width = IW
-    dc.height = IH
-    const dctx = dc.getContext('2d')!
-    ctx.imageSmoothingQuality = 'high'
-    const k = Math.max((IW * SS) / vw, (IH * SS) / vh) // 화면을 꽉 채우도록 가운데를 잘라 맞춤
-    const dw = vw * k, dh = vh * k
-
+    const c = newFrameCanvas()
     onProgress(0, FRAME_COUNT, `첫 프레임 분석 중 (영상 ${vw}×${vh})`)
-    const found: (number[][] | null)[] = []
-    for (let i = 0; i < FRAME_COUNT; i++) {
-      await seek(v, Math.min(duration - 0.05, (i / (FRAME_COUNT - 1)) * duration))
-      ctx.drawImage(v, (IW * SS - dw) / 2, (IH * SS - dh) / 2, dw, dh)
-      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.92))
-      if (!blob) throw new Error('프레임을 만들지 못했어요')
-      frames.push(URL.createObjectURL(blob))
-      dctx.drawImage(c, 0, 0, IW, IH)
-      const l = lm.detect(dc).landmarks[0]
-      found.push(l ? l.map((p) => [p.x * IW, p.y * IH, p.z * IW]) : null)
-      onProgress(i + 1, FRAME_COUNT)
-      await new Promise((r) => setTimeout(r)) // 진행 표시가 갱신되게 한 번 쉼
+    try {
+      return await scan(lm, FRAME_COUNT, onProgress, async (i, dctx) => {
+        await seek(v, Math.min(duration - 0.05, (i / (FRAME_COUNT - 1)) * duration))
+        drawCover(c, v, vw, vh)
+        const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/jpeg', 0.92))
+        if (!blob) throw new Error('프레임을 만들지 못했어요')
+        dctx.drawImage(c, 0, 0, IW, IH)
+        return URL.createObjectURL(blob)
+      })
+    } finally {
+      c.width = c.height = 0 // 캔버스 메모리 바로 반납
     }
-
-    c.width = c.height = dc.width = dc.height = 0   // 캔버스 메모리 바로 반납
-    return buildHand(frames, found)
-  } catch (e) {
-    frames.forEach((u) => URL.revokeObjectURL(u))
-    throw e
   } finally {
     cleanup()
     URL.revokeObjectURL(src)
@@ -186,33 +193,22 @@ export function drawCover(c: HTMLCanvasElement, src: CanvasImageSource, sw: numb
   ctx.drawImage(src, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh)
 }
 
-// 이미 찍어 둔 프레임(JPEG 40장) → 손 좌표 → HandData. analyzeVideo의 두 번째 절반과 같음
-export async function analyzeFrames(blobs: Blob[], onProgress: (done: number, total: number, stage?: string) => void): Promise<HandData> {
+// 이미 찍어 둔 프레임(JPEG 40장) → 손 좌표 → HandData
+export async function analyzeFrames(blobs: Blob[], onProgress: Progress): Promise<HandData> {
   onProgress(0, blobs.length, '손 인식 모델 불러오는 중')
   const lm = await timeout(getLandmarker(), 40000, '손 인식 모델을 불러오지 못했어요')
-  const frames: string[] = []
-  try {
-    const dc = document.createElement('canvas')
-    dc.width = IW
-    dc.height = IH
-    const dctx = dc.getContext('2d')!
-    const found: (number[][] | null)[] = []
-    for (let i = 0; i < blobs.length; i++) {
-      frames.push(URL.createObjectURL(blobs[i]))
+  return scan(lm, blobs.length, onProgress, async (i, dctx) => {
+    const url = URL.createObjectURL(blobs[i])
+    try {
       const bmp = await createImageBitmap(blobs[i])
       dctx.drawImage(bmp, 0, 0, IW, IH)
       bmp.close()
-      const l = lm.detect(dc).landmarks[0]
-      found.push(l ? l.map((p) => [p.x * IW, p.y * IH, p.z * IW]) : null)
-      onProgress(i + 1, blobs.length)
-      await new Promise((r) => setTimeout(r))
+    } catch (e) {
+      URL.revokeObjectURL(url)
+      throw e
     }
-    dc.width = dc.height = 0
-    return buildHand(frames, found)
-  } catch (e) {
-    frames.forEach((u) => URL.revokeObjectURL(u))
-    throw e
-  }
+    return url
+  })
 }
 
 export const revokeHand = (h: HandData) => h.frames.forEach((u) => u.startsWith('blob:') && URL.revokeObjectURL(u))

@@ -1,5 +1,4 @@
-const IW = 480
-const IH = 854
+import { IW, IH } from './constants.ts'
 
 export type Hint = { f: string; name: string; x: number; y: number }   // x, y: 480×854 화면 기준 px
 

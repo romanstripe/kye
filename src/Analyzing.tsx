@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HAND_FILL, HAND_LINE, HAND_POINTS } from "./analyzingHand.ts";
 
-// 분석 화면. reference_analyzing/analyzing.html 을 React 로 옮긴 것 (모양·동작은 그대로).
+// 분석 화면 (손 분석 중에 보이는 화면: 손 그림 위에 관절 점, 뼈 선, 굵기 막대가 차례로 나타남).
 // target = 실제 진행 단계: 0 손 찾는 중 → 1 굵기 재는 중 → 2 반지 자리 잡는 중 → 3 끝.
 // 화면이 휙 지나가지 않도록 단계마다 최소 시간은 보여주고, 다 끝나면 1초 뒤 onFinish.
 const MIN = [1400, 1600, 1200];

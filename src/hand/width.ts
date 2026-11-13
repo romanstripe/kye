@@ -1,7 +1,7 @@
 // @ts-nocheck  (약지 폭 재기: 순수 계산, 화면·three 와 무관)
 import type { SkinMask } from './skin.ts'
 
-const IW = 480, IH = 854   // 프레임 좌표계 (분석 때 맞춘 크기)
+import { IW, IH } from '../constants.ts'
 
 export const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
 // 손가락 폭 재기: 손가락 가운데에서 손가락에 수직으로 걸어가며 양쪽 경계를 찾음.

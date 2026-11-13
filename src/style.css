@@ -52,7 +52,6 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .landing .btn { font: inherit; font-size: 16px; font-weight: 700; border: 0; border-radius: 16px; padding: 16px; cursor: pointer; width: 100%; }
 .landing .btn.dark { background: #111; color: #fff; }
 .landing .btn.light { background: #fff; color: #111; }
-.landing .btn.link { background: none; color: #5f5d62; font-size: 14px; font-weight: 600; padding: 8px; }
 @media (prefers-reduced-motion: reduce) { .landing .lbig { animation: none; } .landing .lbig img { transition: opacity 0.2s; } }
 .chip.icon { width: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 @media (prefers-reduced-motion: no-preference) { .card { transition: transform 0.12s; } }
@@ -135,7 +134,7 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .live-btn { font: inherit; font-size: 16px; font-weight: 700; border: 0; border-radius: 999px; padding: 15px 36px; background: #fff; color: #111; cursor: pointer; }
 .live-btn:disabled { opacity: 0.6; }
 
-/* 분석 화면 (reference_analyzing/analyzing.html 의 스타일. 클래스는 an- 으로 구분) */
+/* 분석 화면 (Analyzing.tsx). 클래스는 an- 으로 구분 */
 .an { --an-sub: #6d6a72; --an-ok: #7CF0A6; --an-mark: #FFD25A; position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: #f4f3f1; }
 .an-top { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 800; font-size: 17px; letter-spacing: -0.5px; padding: calc(18px + env(safe-area-inset-top, 0px)) 20px 0; }
 .an-stage { position: relative; flex: 1; min-height: 0; margin: 8px 0 0; }
@@ -198,7 +197,6 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .sminus { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 0; background: #ff3b30; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .sminus span { width: 10px; height: 2px; background: #fff; border-radius: 1px; }
 .sempty { text-align: center; font-size: 13.5px; line-height: 1.6; color: var(--sub); margin: 18px 0 8px; }
-.sfoot { text-align: center; font-size: 12px; color: var(--sub); margin: 8px 0 0; }
 .hsep { width: 28px; height: 1px; background: var(--line); margin: 8px 0 4px; }
 .heart { width: 44px; height: 44px; border-radius: 50%; border: 0; background: none; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .heart.on { color: #ff3b30; }

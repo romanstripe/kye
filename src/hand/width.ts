@@ -69,8 +69,8 @@ function measureFinger(L, m: SkinMask, f: Finger, webT: number | null) {
 const skinAt = (m: SkinMask, x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
 // 갈라지는 곳: 이웃 손가락과의 틈(마스크가 비어 있는 곳)이 끝나는 지점.
 //  두 손가락 시작 관절의 가운데에서, 두 손가락 방향의 평균 방향으로, 둘째 마디 높이부터 손바닥 쪽으로 걸어가며
-//  틈(4px 이상 이어진 빈 곳)을 지나 처음 피부를 만나는 곳. 양쪽 이웃이 다 있으면 더 위쪽(손가락 끝 쪽)을 씀.
-//  못 찾으면(손가락이 붙어 있거나 이웃이 없는 바깥쪽) null. web=점(px), webT=시작 관절→다음 관절 길이 대비 위치(0=시작 관절)
+//  틈(4px 이상 이어진 빈 곳)을 지나 처음 피부를 만나는 곳. 양쪽 이웃이 다 잡히면 MCP 에 더 가까운 쪽(비율이 작은 쪽), 한쪽만 잡히면 그쪽.
+//  못 찾으면(손가락이 붙어 있거나 이웃이 없는 바깥쪽) null. web=점(px), webT=갈림 비율 = MCP→PIP 위 위치 (0=MCP, 1=PIP)
 function findWeb(L, m: SkinMask, f: Finger) {
   const [ia, ib] = JOINT[f], af = L[ia], bf = L[ib]
   const dx = bf[0] - af[0], dy = bf[1] - af[1], lf = Math.hypot(dx, dy) || 1
@@ -87,7 +87,7 @@ function findWeb(L, m: SkinMask, f: Finger) {
     }
     if (hit == null) continue
     const web = [ox + ux * hit, oy + uy * hit], t = ((web[0] - af[0]) * dx + (web[1] - af[1]) * dy) / lf / lf
-    if (t > -0.2 && t < 0.95 && (!best || t > best.webT)) best = { web, webT: t }
+    if (t > -0.2 && t < 0.95 && (!best || t < best.webT)) best = { web, webT: t }
   }
   return best ?? { web: null, webT: null }
 }

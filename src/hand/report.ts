@@ -14,6 +14,11 @@ export function fingerLine(meas: Map<string, any>, frames: string[], pmin: numbe
   }).join(' · ')
 }
 
+// 손가락별 갈림 비율(0=MCP, 1=PIP)과 이 프레임에서 쓴 값의 출처: 측정(이 프레임에서 잰 값) / 고정(가운데값) / 이웃(이웃 평균) / 기본(0.6)
+export function ratioLine(poses: Record<string, (number | string)[] | null>) {
+  return '\n갈림 ' + FINGERS.map((f) => { const p = poses[f]; return p ? `${FINGER_NAME[f]} ${(p[7] as number) >= 0 ? (p[7] as number).toFixed(2) : '-'}(${p[8]})` : `${FINGER_NAME[f]} -` }).join(' · ')
+}
+
 // 약지·소지가 제외된 프레임의 이유별 개수
 export function whyLine(meas: Map<string, any>, frames: string[], pmin: number, pmax: number) {
   return (['ring', 'pinky'] as const)

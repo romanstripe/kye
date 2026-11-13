@@ -25,7 +25,7 @@ import { measure, FINGERS, FINGER_NAME, JOINT } from "../hand/width.ts";
 import { computeFixed } from "../hand/fixed.ts";
 import { ringPoseOf } from "../hand/pose.ts";
 import type { Fixed } from "../hand/fixed.ts";
-import { fingerLine as fingerLineOf, whyLine as whyLineOf } from "../hand/report.ts";
+import { fingerLine as fingerLineOf, whyLine as whyLineOf, ratioLine } from "../hand/report.ts";
 import { drawHandDebug } from "./debugDraw.ts";
 import { smoothLandmarks } from "../hand/smooth.ts";
 
@@ -87,20 +87,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   // 가까이: 반지 자리를 2.6배 확대해서 보여줌 (손 사진·반지 캔버스를 같이 키움)
   const zw = img.parentElement,
     box = zw.parentElement;
-  // 반지 설정 시트가 열리면 고른 반지가 시트 위 가운데(화면 높이 FOCUS px)에 오게 사진·3D·디버그 캔버스를 같이 옮기고 1.3배. 닫으면 원래대로 (zw 의 transform 전환으로 부드럽게)
-  let FOCUS: number | null = null;
   function applyZoom() {
     const k = box.clientWidth / IW;
-    if (FOCUS != null) {
-      const Z = 1.3,
-        f = SLOTS[AI]?.st?.FINGER,
-        p = f ? poseOf(f) : null,
-        c = p ? [p[0], p[1]] : zc;
-      const tx = Math.min(0, Math.max(box.clientWidth * (1 - Z), box.clientWidth / 2 - c[0] * k * Z)),
-        ty = Math.min(0, Math.max(box.clientHeight * (1 - Z), FOCUS - box.getBoundingClientRect().top - c[1] * k * Z));
-      zw.style.transform = `translate(${tx}px,${ty}px) scale(${Z})`;
-      return;
-    }
     const Z = 2.6;
     if (!zoom) {
       zw.style.transform = "none";
@@ -429,7 +417,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산 (hand/pose.ts). 원래 점(LMS)은 폭 재기·디버그 그리기용
     const L = SM[cur];
     if (!L) return null;
-    return ringPoseOf(f, L, fixed?.[f], SLOTS.find((sl) => sl.st.FINGER === f)?.st.WMM ?? 0, S.FD);
+    return ringPoseOf(f, L, fixed?.[f], SLOTS.find((sl) => sl.st.FINGER === f)?.st.WMM ?? 0, S.FD, meas.get(frames[cur])?.[f]?.webT ?? null);
   }
   function hideAll() {
     SLOTS.forEach(({ objs: o }) => {
@@ -790,7 +778,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
       return;
     }
     say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : "-"}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : "-"}px
-${fingerLine()}${whyLineOf(meas, frames, PMIN, PMAX)}${msLine()}`);
+${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])))}${whyLineOf(meas, frames, PMIN, PMAX)}${msLine()}`);
   }
   function drawDebug() {
     const cv2 = els.debug;
@@ -1058,10 +1046,6 @@ ${fingerLine()}${whyLineOf(meas, frames, PMIN, PMAX)}${msLine()}`);
       }
       report();
       drawDebug();
-    },
-    setFocus(y: number | null) {
-      FOCUS = y;
-      applyZoom();
     },
     setPlaying(on: boolean) {
       AUTO = on;

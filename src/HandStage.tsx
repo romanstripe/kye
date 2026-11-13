@@ -25,7 +25,7 @@ export type Menu = {
 
 // 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 반지 데이터는 public/rings.json
 // 처음 들어오면 initialFile(영상 파일 또는 촬영한 프레임)을 분석하는 동안 분석 화면을 덮어 두고, 끝나면 걷음. 분석에 실패하면 onBack
-export default function HandStage({ onReady, onActiveRing, initialFile, onBack, sets, onSaveSet, onViewSets }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile: File | Blob[]; onBack: () => void; sets: SavedSet[]; onSaveSet: (s: Snapshot) => boolean; onViewSets: () => void }) {
+export default function HandStage({ onReady, onActiveRing, initialFile, onBack, sets, onSaveSet, onViewSets, focusY }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile: File | Blob[]; onBack: () => void; sets: SavedSet[]; onSaveSet: (s: Snapshot) => boolean; onViewSets: () => void; focusY: number | null }) {
   const [live, setLive] = useState(false)   // 실시간 카메라 켜짐
   const [ho, setHo] = useState(10)   // 내 호수 (세트를 복원하면 저장된 호수로 바뀜)
   const [an, setAn] = useState(0)   // 분석 화면의 진행 단계 (0 손 찾기, 1 굵기 재기, 3 끝)
@@ -94,6 +94,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack, 
   }, [setOpen])
 
   const { saved, save, toast: saveToast, hideToast } = useSaveSet(stageRef, sets, onSaveSet)
+  useEffect(() => { stageRef.current?.setFocus(focusY) }, [focusY])   // 반지 설정 시트가 열리면 고른 반지가 시트 위 가운데 오게 옮김
 
   const onFile = async (f: File | Blob[] | undefined) => {
     if (!f || !stageRef.current) return

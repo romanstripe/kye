@@ -73,19 +73,6 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 
 .primary { display: block; width: calc(100% - 40px); margin: 0 20px; font: inherit; font-size: 15px; font-weight: 600; border: 0; border-radius: 999px; padding: 15px; background: var(--ink); color: #fff; cursor: pointer; letter-spacing: -0.1px; }
 .primary:disabled { opacity: 0.5; cursor: default; }
-.sh-head { display: flex; align-items: baseline; gap: 8px; padding: 2px 14px 8px; }
-.sh-head button { font: inherit; font-size: 22px; line-height: 1; border: 0; background: none; color: var(--ink); padding: 2px 6px; cursor: pointer; }
-.sh-head b { font-size: 17px; font-weight: 600; }
-.sh-head span { color: var(--sub); font-size: 12.5px; }
-.dbody { max-height: 36vh; overflow-y: auto; padding: 0 20px 12px; }
-.grp { padding: 9px 0; border-top: 1px solid var(--line); }
-.grp:first-child { border-top: 0; }
-.gl { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.chips + .chips { margin-top: 6px; }
-.chips button { font: inherit; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.6); color: var(--ink); padding: 8px 13px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.chips button[aria-pressed='true'] { border-color: var(--ink); box-shadow: inset 0 0 0 0.5px var(--ink); font-weight: 600; }
-.chips i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
 .solinfo { font-size: 12.5px; color: var(--ink); font-weight: 500; margin-top: 8px; }
 .dbody::-webkit-scrollbar { width: 4px; background: transparent; }
 .dbody::-webkit-scrollbar-track { background: transparent; }
@@ -202,3 +189,25 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .heart.on { color: #ff3b30; }
 .toast button { font: inherit; font-weight: 700; border: 0; background: none; color: #fff; text-decoration: underline; margin-left: 10px; padding: 0; cursor: pointer; }
 .live-tip { position: absolute; top: calc(18px + env(safe-area-inset-top, 0px)); left: 56px; right: 56px; margin: 0 auto; width: fit-content; text-align: center; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 13px; font-weight: 600; line-height: 1.45; padding: 9px 14px; border-radius: 14px; }
+
+/* 반지 자세히 설정 시트: 화면의 31% 안팎, 한 줄에 한 항목 */
+.sheet.detail { height: clamp(224px, 31vh, 300px); display: flex; flex-direction: column; }
+.dh { flex: none; display: flex; align-items: center; gap: 8px; padding: 2px 14px 2px 6px; min-height: 42px; }
+.dback { font: inherit; font-size: 26px; line-height: 1; border: 0; background: none; color: var(--ink); padding: 0 8px 3px; cursor: pointer; }
+.dh b { font-size: 17px; font-weight: 600; white-space: nowrap; }
+.dh span { flex: 1; min-width: 0; color: var(--sub); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ddone { flex: none; margin-left: auto; height: 34px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.dbody { flex: 1; min-height: 0; overflow-y: auto; padding: 0 0 4px 20px; }
+.drow { display: flex; align-items: center; height: 44px; }
+.dl { flex: none; width: 58px; font-size: 12px; color: var(--sub); white-space: nowrap; }
+.dscroll { flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; padding-right: 20px; }
+.dscroll::-webkit-scrollbar { display: none; }
+.dscroll.fade { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.dchips { display: flex; align-items: center; gap: 6px; width: max-content; }
+.dchip { flex: none; height: 32px; font: inherit; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.6); color: var(--ink); padding: 0 13px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; white-space: nowrap; }
+.dchip[aria-pressed='true'] { border-color: var(--ink); box-shadow: inset 0 0 0 0.5px var(--ink); font-weight: 600; }
+.dcolors { display: flex; align-items: center; gap: 10px; }
+.cdot { flex: none; width: 32px; height: 32px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.cdot[aria-pressed='true'] { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--ink); }
+.cname { font-size: 13px; font-weight: 600; margin-left: 2px; white-space: nowrap; }
+.dinfo { font-size: 12px; color: var(--ink); padding: 2px 20px 6px 58px; }

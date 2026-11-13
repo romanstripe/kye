@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import HandStage from './HandStage.tsx'
 import type { Menu } from './HandStage.tsx'
 import Wheel from './Wheel.tsx'
@@ -7,6 +7,8 @@ import Landing from './Landing.tsx'
 import SetsList from './SetsList.tsx'
 import { loadSets, addSet, removeSet } from './sets.ts'
 import type { SavedSet } from './sets.ts'
+
+const TOOLS_H = 56   // 손 화면 위쪽 버튼 줄이 덮는 높이(px)
 
 export default function App() {
   // 처음부터 펼쳐진 채로 보임 (애니메이션으로 튀어나오지 않음). 접힌 채로 시작하려면 false
@@ -25,6 +27,12 @@ export default function App() {
     setTab('pick'); setView('list'); setEdit(false)
   }
   const [screen, setScreen] = useState<'landing' | 'main'>('landing')
+  const sheetRef = useRef<HTMLElement>(null)
+  const detailing = open && tab === 'pick' && view === 'detail'   // 반지 자세히 설정 중
+  const [focusY, setFocusY] = useState<number | null>(null)   // 설정 중 고른 반지를 놓을 높이(화면 px): 도구 줄 아래 ~ 시트 위의 가운데
+  useLayoutEffect(() => {
+    setFocusY(detailing && sheetRef.current ? (TOOLS_H + sheetRef.current.getBoundingClientRect().top) / 2 : null)
+  }, [detailing])
   const [file, setFile] = useState<File | Blob[] | undefined>()   // 랜딩에서 찍은 영상(파일) 또는 실시간 촬영 프레임
 
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -55,6 +63,7 @@ export default function App() {
           onViewSets={() => go('sets')}
           onBack={() => { setFile(undefined); setMenu(null); setScreen('landing') }}
           onActiveRing={setSel}
+          focusY={focusY}
           onReady={(m) => {
             setMenu(m)
             setSel(m.initial)
@@ -62,8 +71,8 @@ export default function App() {
         />
       </div>
 
-      <section className={`sheet${open ? '' : ' collapsed'}`} aria-label="반지 고르기">
-        <div className="grab-row">
+      <section ref={sheetRef} className={`sheet${open ? '' : ' collapsed'}${detailing ? ' detail' : ''}`} aria-label="반지 고르기">
+        {!detailing && <div className="grab-row">
           <button
             className="grab-btn"
             aria-label={open ? '반지 고르기 접기' : '반지 고르기 펴기'}
@@ -88,7 +97,7 @@ export default function App() {
           {open && tab === 'sets' && visible.length > 0 && (
             <button type="button" className="gedit" onClick={() => setEdit((e) => !e)}>{edit ? '완료' : '편집'}</button>
           )}
-        </div>
+        </div>}
         {open && tab === 'sets' && menu && (
           <SetsList
             sets={visible}

@@ -109,7 +109,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
 
   // 반지 크기·자리는 보정 없이, 잰 손가락 폭으로 결정
-  let DZK = 0.3, FEATHER = 0.8, OCCK = 0.89
+  let DZK = Number(new URLSearchParams(location.search).get('dzk') ?? 0.3), FEATHER = 0.8, OCCK = 0.89
   const V = (L, i) => new THREE.Vector3(L[i][0], -L[i][1], -L[i][2])   // DZK: 손가락이 카메라 쪽으로 기운 정도(깊이)를 얼마나 믿을지
   function placeOcc(L, rad) {
     SEGS.forEach(([i, j, k], n) => {
@@ -309,6 +309,15 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     fingerMemo = { n: meas.size, txt }
     return txt
   }
+  // 약지·소지가 제외된 프레임의 이유별 개수 (재생 구간)
+  function whyLine() {
+    return ['ring', 'pinky'].map(f => {
+      const t: Record<string, number> = {}; let n = 0
+      for (let i = PMIN; i <= PMAX; i++) { const q = meas.get(frames[i])?.[f]; if (q && q.w == null) { n++; t[q.why ?? '?'] = (t[q.why ?? '?'] || 0) + 1 } }
+      return n ? `
+${FINGER_NAME[f]} 제외 ${n}: ${Object.entries(t).map(([k, v]) => `${k} ${v}`).join(', ')}` : ''
+    }).join('')
+  }
   const msLine = () => drawMs.length ? `\n그리기 ${(drawMs.reduce((a, b) => a + b, 0) / drawMs.length).toFixed(1)}ms (최근 ${drawMs.length}번 평균, 최대 ${Math.max(...drawMs).toFixed(1)}ms)` : ''
   function reportMine(say: (s: string) => void) {
     const total = PMAX - PMIN + 1; let done = 0
@@ -318,13 +327,13 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (!fr.n) { say('약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)'); return }
     if (!DEBUG) { say(''); return }
     say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px
-${fingerLine()}${msLine()}`)
+${fingerLine()}${whyLine()}${msLine()}`)
   }
   function drawDebug() {
     const cv2 = els.debug; if (!cv2) return
     const L = DEBUG && LMS[cur]
     if (!L) { cv2.getContext('2d').clearRect(0, 0, cv2.width, cv2.height); return }
-    drawHandDebug(cv2, L, masks.get(frames[cur]), meas.get(frames[cur]))
+    drawHandDebug(cv2, L, masks.get(frames[cur]), meas.get(frames[cur]), Object.fromEntries(FINGERS.map(f => [f, poseOf(f)])))
   }
 
   // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐

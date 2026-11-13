@@ -35,7 +35,8 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
   const dbg = useRef<HTMLCanvasElement>(null)
-  const [debug, setDebug] = useState(false)
+  const wantDebug = new URLSearchParams(location.search).get('debug') === '1'   // ?debug=1 이면 디버그를 켠 채로 시작
+  const [debug, setDebug] = useState(wantDebug)
   const [info, setInfo] = useState('')
   const stageRef = useRef<ReturnType<typeof createStage> | null>(null)
   const mine = useRef<HandData | null>(null)
@@ -72,6 +73,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
         rings,
         hand,
       )
+      if (wantDebug) stage.setDebug(true)
       ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: rings[0].id })
     }).catch((e) => !dead && setAnFail(e instanceof Error ? e.message : '분석에 실패했어요'))
     return () => {

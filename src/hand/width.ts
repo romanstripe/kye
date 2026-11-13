@@ -31,13 +31,13 @@ function measureFinger(L, m: SkinMask, f: Finger) {
   const hit = (P, Q) => { const d = [Q[0] - P[0], Q[1] - P[1]], den = n[0] * d[1] - n[1] * d[0]; return Math.abs(den) < 1e-6 ? null : ((P[0] - c[0]) * d[1] - (P[1] - c[1]) * d[0]) / den }
   const line = (g: Finger) => hit(L[JOINT[g][0]], L[JOINT[g][1]])
   const sM = line(pos), sN = neg ? line(neg) : null
-  if (sM == null || sM <= 2 || (neg && (sN == null || sN >= -2))) return { c, n, w: null, limM: 60, limP: 60 }
+  if (sM == null || sM <= 2 || (neg && (sN == null || sN >= -2))) return { c, n, w: null, limM: 60, limP: 60, why: '이웃선 안맞음' }
   const limM = sM
   let limP = neg ? -sN : k * limM   // 바깥쪽은 이웃 쪽 길이의 k배 (이웃 쪽을 잰 뒤 다시 정함)
-  const fail = () => ({ c, n, w: null, limM, limP })
+  const fail = (why) => ({ c, n, w: null, limM, limP, why })   // why: 제외된 이유 (디버그 표시용)
   const skin = (x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
   const lumaAt = (x, y) => { let t = 0; for (const o of [-2, 0, 2]) { const ix = Math.round((x + u[0] * o) * m.lw / IW), iy = Math.round((y + u[1] * o) * m.lh / IH); t += ix >= 0 && iy >= 0 && ix < m.lw && iy < m.lh ? m.luma[iy * m.lw + ix] : 255 } return t / 3 }
-  if (!skin(c[0], c[1])) return fail()
+  if (!skin(c[0], c[1])) return fail('가운데 마스크 밖')
   const side = (sg, lim) => {
     let s = 0; while (s < lim && skin(c[0] + n[0] * sg * (s + 0.25), c[1] + n[1] * sg * (s + 0.25))) s += 0.25
     if (s < lim - 0.25) return { s, kind: '마스크' }
@@ -48,10 +48,10 @@ function measureFinger(L, m: SkinMask, f: Finger) {
     if (sm[bi] > 0.85 * median(sm)) return null   // 뚜렷하게 어두운 곳이 없으면 못 잡은 것
     return { s: prof[bi][0], kind: '어두움' }
   }
-  const rM = side(1, limM); if (!rM) return fail()
+  const rM = side(1, limM); if (!rM) return fail('벽(이웃쪽) 못찾음')
   if (!neg) limP = k * rM.s   // 바깥쪽 한도: 이웃 쪽에서 잰 길이 기준
-  if (limP < 2) return fail()
-  const rP = side(-1, limP); if (!rP) return fail()
+  if (limP < 2) return fail('바깥쪽 한도 부족')
+  const rP = side(-1, limP); if (!rP) return fail('벽(바깥쪽) 못찾음')
   return { c, n, limM, limP, w: rM.s + rP.s, A: [c[0] - n[0] * rP.s, c[1] - n[1] * rP.s], B: [c[0] + n[0] * rM.s, c[1] + n[1] * rM.s], kindM: rM.kind, kindP: rP.kind }
 }
 const skinAt = (m: SkinMask, x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }

@@ -46,6 +46,20 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   function setHand(h) {
     N = h.N; P = h.P; LMS = h.LMS; SM = smoothLandmarks(LMS); frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
     fixed = null
+    // '평평할 때 길이': 손가락마다 영상 전체에서 시작 관절→다음 관절의 화면 길이가 가장 긴 값 (pitch 계산용)
+    HANDN = SM.filter(Boolean).length
+    FLAT = Object.fromEntries(FINGERS.map(f => [f, Math.max(0, ...SM.map((_, i) => jlen(f, i)))]))
+    // 프레임별 pitch(부호 있음, 라디안): 길이 비율로 구한 각도에 z 부호를 붙인 뒤 앞뒤 프레임과 삼각형 가중 평균 (부호가 뒤집히며 떠는 것도 평균에 묻힘)
+    PITCH = Object.fromEntries(FINGERS.map(f => {
+      const [ia, ib] = JOINT[f]
+      const raw = SM.map((L, i) => L && FLAT[f] > 0 ? (L[ib][2] - L[ia][2] > 0 ? -1 : 1) * Math.acos(Math.min(1, jlen(f, i) / FLAT[f])) : null)
+      return [f, raw.map((v, i) => {
+        if (v == null) return null
+        let q = 0, w = 0
+        for (let d = -PITCH_WIN; d <= PITCH_WIN; d++) { const e = raw[i + d]; if (e == null) continue; const k = PITCH_WIN + 1 - Math.abs(d); q += e * k; w += k }
+        return q / w
+      })]
+    }))
     cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
     masks.clear(); meas.clear(); fingerMemo = null; inflight.clear(); warmId++; warm(); report()   // 손 영상을 불러오면 재생 구간의 다섯 손가락 폭을 미리 재 둠 (끝나면 다시 재지 않음)
   }
@@ -109,8 +123,12 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
 
   // 반지 크기·자리는 보정 없이, 잰 손가락 폭으로 결정
-  let DZK = Number(new URLSearchParams(location.search).get('dzk') ?? 0.3), FEATHER = 0.8, OCCK = 0.89
-  const V = (L, i) => new THREE.Vector3(L[i][0], -L[i][1], -L[i][2])   // DZK: 손가락이 카메라 쪽으로 기운 정도(깊이)를 얼마나 믿을지
+  let FEATHER = 0.8, OCCK = 0.89
+  let FLAT: Record<string, number> = {}, PITCH: Record<string, (number | null)[]> = {}, HANDN = 0
+  // pitch 민감도: 앞뒤 ±PITCH_WIN 프레임 평균, 작은 각도(PITCH_DEAD 라디안 이하)는 0, 나머지는 PITCH_GAIN 배
+  const PITCH_WIN = 4, PITCH_DEAD = 0.09, PITCH_GAIN = 0.8
+  const calm = (t: number) => Math.sign(t) * Math.max(0, Math.abs(t) - PITCH_DEAD) * PITCH_GAIN
+  const V = (L, i) => new THREE.Vector3(L[i][0], -L[i][1], -L[i][2])
   function placeOcc(L, rad) {
     SEGS.forEach(([i, j, k], n) => {
       const a = V(L, i), b = V(L, j), m = occ[n], d = b.clone().sub(a), len = d.length()
@@ -132,7 +150,10 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const Z = axis.clone().negate(), qH = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(Y, Z), Y, Z))
     return { qR, qH }
   }
-  // 손가락별 반지 자리 [cx,cy,cz,dx,dy,dz,반지 안쪽 반지름(px)]. 폭을 아직 못 쟀으면 null
+  // 사진 한 장일 때만 쓰는 '평평할 때 길이' 대체: 손바닥 폭(5→17 화면 거리) × 손가락별 비율 (어림값. 영상은 항상 8프레임 이상이라 지금은 안 쓰임)
+  const PALM_K = { thumb: 0.5, index: 0.55, middle: 0.6, ring: 0.55, pinky: 0.43 }
+  // 손가락별 반지 자리 [cx,cy,cz, 축 x,y,z(길이 1, z는 렌더 좌표), 반지 안쪽 반지름(px), pitch(도)]. 폭을 아직 못 쟀으면 null
+  //  - pitch = acos(지금 화면 길이 ÷ 평평할 때 길이). 손가락이 짧아 보일수록 카메라 쪽/반대쪽으로 기운 것. 방향(손끝이 다가옴 +)만 MediaPipe z 부호로
   //  - 방향 = 관절 방향, 크기 = 그 손가락 고정 폭 × (이 프레임 관절 길이 ÷ 잰 프레임들 길이)
   //  - 중심 = 시작 관절→다음 관절 위의 자리 r (0~1): 갈라지는 곳 + (반지 폭/2 + 1.5mm) 위, 갈라지는 곳을 못 찾았으면 0.6
   //    (mm는 지금 잰 px/mm = 2·fr/FD)
@@ -145,7 +166,11 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const jd = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, sh = fx.O * len   // 피부 가운데로 옆 이동 (축에 수직)
     const fr = fx.W * len / fx.L / 2
     const r = fx.T != null ? Math.min(1.15, (fx.T * len + ((SLOTS.find(sl => sl.st.FINGER === f)?.st.WMM ?? 0) / 2 + 1.5) * 2 * fr / S.FD) / len) : 0.6
-    return [a[0] + (b[0] - a[0]) * r - (b[1] - a[1]) / jd * sh, a[1] + (b[1] - a[1]) * r + (b[0] - a[0]) / jd * sh, a[2] + (b[2] - a[2]) * r, b[0] - a[0], b[1] - a[1], b[2] - a[2], fr]
+    // 영상: 미리 구해 둔 프레임별 pitch. 사진 한 장: 손바닥 폭 대비 길이로 즉석 계산. 방향은 MediaPipe z 부호 (작을수록 카메라에 가까움: 손끝이 더 작으면 다가오는 중 +)
+    const flat = PALM_K[f] * Math.hypot(L[5][0] - L[17][0], L[5][1] - L[17][1])
+    const sp = calm(HANDN >= 3 ? PITCH[f]?.[cur] ?? 0 : flat > 0 ? (b[2] - a[2] > 0 ? -1 : 1) * Math.acos(Math.min(1, len / flat)) : 0)
+    const th = Math.abs(sp), sgn = sp < 0 ? -1 : 1
+    return [a[0] + (b[0] - a[0]) * r - (b[1] - a[1]) / jd * sh, a[1] + (b[1] - a[1]) * r + (b[0] - a[0]) / jd * sh, a[2] + (b[2] - a[2]) * r, (b[0] - a[0]) / jd * Math.cos(th), (b[1] - a[1]) / jd * Math.cos(th), sgn * Math.sin(th), fr, sgn * th * 180 / Math.PI]
   }
   function hideAll() { SLOTS.forEach(({ objs: o }) => { if (!o) return; [o.ring, o.ring2].forEach(g => { if (g) { g.visible = false; g.userData.stones.visible = false } }); if (o.head) o.head.visible = false }) }
   function place() {
@@ -160,7 +185,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     used.forEach(f => {
       const pf = poses[f]; if (!pf) return
       const [cx, cy, cz, dx, dy, dz, fr] = pf
-      const axis = new THREE.Vector3(dx, -dy, -dz * DZK).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
+      const axis = new THREE.Vector3(dx, -dy, dz).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
       const frK = fr, pxmm = 2 * frK / FD, Rin = frK, gap = 0.2 * pxmm
       const { qR, qH } = frameFor(axis, qd, 0.1)   // 손이 돈 만큼보다 조금 더 돌려서 알의 옆면(크라운·발)이 보이게
       const u2 = Math.hypot(dx, dy) || 1
@@ -181,7 +206,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
         if (o.ring2) setRing(o.ring2, qR, pos, Rin, W2, axis, offpx + bandW / 2 + gap + W2 / 2, st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null)
         const t = o.ring.userData.t
         if (si === AI) { outerPx = 2 * Rin * (1 + t); usedW = fr * 2; S.pxmmNow = pxmm }
-        const MK = { cx: cx + dx / u2 * offpx, cy: cy + dy / u2 * offpx, ux: dx / u2, uy: dy / u2, hw: Rin * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
+        const MK = { cx: cx + axis.x * offpx, cy: cy - axis.y * offpx, ux: dx / u2, uy: dy / u2, hw: Rin * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
         const head = o.head
         if (head) {
           const qq = head.userData.slide ? qR.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)) : qH; head.quaternion.copy(qq); head.userData.q0 = qq.clone(); head.userData.axis = axis.clone(); slideHead(head); head.position.copy(pos).add(axis.clone().multiplyScalar(offpx)); head.scale.setScalar(pxmm); head.visible = true

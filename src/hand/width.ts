@@ -21,8 +21,9 @@ const NEIGH: Record<Finger, { pos: Finger; neg: Finger | null; k: number }> = {
   pinky: { pos: 'ring', neg: null, k: 1.5 },
 }
 
-function measureFinger(L, m: SkinMask, f: Finger) {
-  const [ia, ib] = JOINT[f], a = L[ia], b = L[ib], c = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+// 한 줄 재기: 시작 관절→다음 관절 위의 t(0~1) 지점에서 수직으로 폭을 잼 (t=0.5 는 관절 두 점의 가운데)
+function measureAt(L, m: SkinMask, f: Finger, t: number) {
+  const [ia, ib] = JOINT[f], a = L[ia], b = L[ib], c = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
   const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]
   const { pos, neg, k } = NEIGH[f]
   let n = [-u[1], u[0]]
@@ -54,6 +55,17 @@ function measureFinger(L, m: SkinMask, f: Finger) {
   const rP = side(-1, limP); if (!rP) return fail('벽(바깥쪽) 못찾음')
   return { c, n, limM, limP, w: rM.s + rP.s, A: [c[0] - n[0] * rP.s, c[1] - n[1] * rP.s], B: [c[0] + n[0] * rM.s, c[1] + n[1] * rM.s], kindM: rM.kind, kindP: rP.kind }
 }
+// 폭 재는 줄: 갈라지는 곳에서 다음 관절 쪽으로 5줄 (관절 길이 대비 간격). 갈라지는 곳을 못 찾았으면 60% 지점 둘레로 같은 5줄.
+// 잰 줄이 3개 이상이면 그중 폭이 가운데인 줄을 결과로, 3개 미만이면 제외 (이유 뒤에 잰 줄 수)
+const LINE_OFFS = [0.06, 0.12, 0.18, 0.24, 0.30]
+function measureFinger(L, m: SkinMask, f: Finger, webT: number | null) {
+  const base = webT ?? 0.6 - LINE_OFFS[2]
+  const rs = LINE_OFFS.map((o) => measureAt(L, m, f, Math.min(1, base + o)))
+  const ok = rs.filter((r) => r.w != null).sort((p, q) => p.w - q.w)
+  if (ok.length >= 3) return ok[(ok.length - 1) >> 1]
+  const bad = rs.find((r) => r.w == null)
+  return { ...bad, why: `${bad.why} · ${ok.length}/5줄` }
+}
 const skinAt = (m: SkinMask, x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
 // 갈라지는 곳: 이웃 손가락과의 틈(마스크가 비어 있는 곳)이 끝나는 지점.
 //  두 손가락 시작 관절의 가운데에서, 두 손가락 방향의 평균 방향으로, 둘째 마디 높이부터 손바닥 쪽으로 걸어가며
@@ -79,5 +91,5 @@ function findWeb(L, m: SkinMask, f: Finger) {
   }
   return best ?? { web: null, webT: null }
 }
-// 프레임 하나에서 다섯 손가락 모두 (폭 + 갈라지는 곳)
-export const measure = (L, m: SkinMask) => Object.fromEntries(FINGERS.map((f) => [f, { ...measureFinger(L, m, f), ...findWeb(L, m, f) }])) as Record<Finger, any>
+// 프레임 하나에서 다섯 손가락 모두 (갈라지는 곳 + 그 위쪽에서 잰 폭)
+export const measure = (L, m: SkinMask) => Object.fromEntries(FINGERS.map((f) => { const w = findWeb(L, m, f); return [f, { ...measureFinger(L, m, f, w.webT), ...w }] })) as Record<Finger, any>

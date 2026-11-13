@@ -16,6 +16,7 @@ export function drawHandDebug(cv2: HTMLCanvasElement, L: number[][], mk: SkinMas
     const q = r[f]; if (!q) return; const col = FINGER_COLOR[f]
     x.strokeStyle = col; x.lineWidth = 2 * k; x.beginPath(); x.moveTo((q.c[0] - q.n[0] * q.limP) * k, (q.c[1] - q.n[1] * q.limP) * k); x.lineTo((q.c[0] + q.n[0] * q.limM) * k, (q.c[1] + q.n[1] * q.limM) * k); x.stroke()
     if (q.w != null) [q.A, q.B].forEach(p => { x.beginPath(); x.arc(p[0] * k, p[1] * k, 5 * k, 0, TAU); x.fillStyle = col; x.fill(); x.lineWidth = 2 * k; x.strokeStyle = '#fff'; x.stroke() })
+    if (q.web) { x.save(); x.translate(q.web[0] * k, q.web[1] * k); x.rotate(Math.PI / 4); x.fillStyle = col; x.fillRect(-5 * k, -5 * k, 10 * k, 10 * k); x.lineWidth = 2 * k; x.strokeStyle = '#fff'; x.strokeRect(-5 * k, -5 * k, 10 * k, 10 * k); x.restore() }   // 갈라지는 곳: 마름모
     const txt = q.w == null ? '제외' : `${q.w.toFixed(1)}`
     x.font = `700 ${13 * k}px sans-serif`; x.lineWidth = 4 * k; x.strokeStyle = 'rgba(0,0,0,.75)'; x.fillStyle = col
     x.strokeText(txt, (q.c[0] + 8) * k, (q.c[1] - 8) * k); x.fillText(txt, (q.c[0] + 8) * k, (q.c[1] - 8) * k)

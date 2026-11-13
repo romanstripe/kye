@@ -149,7 +149,15 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const [ia, ib] = JOINT[f], a = L[ia], b = L[ib]
     const fx = fixed?.[f], len = jlen(f, cur)
     const jd = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, sh = fx ? fx.O * len : 0   // 피부 가운데로 옆 이동 (축에 수직)
-    const byWidth = fx && fx.n && len > 0 ? [a[0] * 0.6 + b[0] * 0.4 - (b[1] - a[1]) / jd * sh, a[1] * 0.6 + b[1] * 0.4 + (b[0] - a[0]) / jd * sh, a[2] * 0.6 + b[2] * 0.4, b[0] - a[0], b[1] - a[1], b[2] - a[2], fx.W * len / fx.L / 2, true] : null
+    let byWidth = null
+    if (fx && fx.n && len > 0) {
+      const fr = fx.W * len / fx.L / 2
+      // 시작 관절→다음 관절 위의 자리(0~1). 예시 손은 예전 그대로 0.4.
+      // 내 손: 갈라지는 곳 + (반지 폭/2 + 1.5mm) 위. 갈라지는 곳을 못 찾았으면 0.6 (mm는 지금 잰 px/mm = 2·fr/FD)
+      let r = 0.4
+      if (T.measured) r = fx.T != null ? Math.min(1.15, (fx.T * len + ((SLOTS.find(sl => sl.st.FINGER === f)?.st.WMM ?? 0) / 2 + 1.5) * 2 * fr / S.FD) / len) : 0.6
+      byWidth = [a[0] + (b[0] - a[0]) * r - (b[1] - a[1]) / jd * sh, a[1] + (b[1] - a[1]) * r + (b[0] - a[0]) / jd * sh, a[2] + (b[2] - a[2]) * r, b[0] - a[0], b[1] - a[1], b[2] - a[2], fr, true]
+    }
     if (T.measured) return byWidth
     const Q = P[cur]; if (!Q) return null
     if (f === 'ring') return Q
@@ -265,17 +273,18 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
   // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
   let DEBUG = false
-  let fixed: Record<string, { W: number; L: number; n: number; O: number }> | null = null   // 손가락별 고정 폭(px), 잰 프레임들의 관절 길이(px), 잰 프레임 수
+  let fixed: Record<string, { W: number; L: number; n: number; O: number; T: number | null }> | null = null   // 손가락별 고정 폭(px), 잰 프레임들의 관절 길이(px), 잰 프레임 수, 옆 어긋남, 갈라지는 곳 위치(관절 길이 대비, 없으면 null)
   let usedW: number | null = null, outerPx: number | null = null
   // 재생 구간을 다 재고 나면, 손가락마다 양쪽 경계가 다 잡힌 프레임들의 폭 가운데값을 하나로 고정
   function refix() {
     if (fixed) return false
     for (let i = PMIN; i <= PMAX; i++) if (!meas.get(frames[i])) return false
     fixed = Object.fromEntries(FINGERS.map(f => {
-      const ws: number[] = [], ls: number[] = [], os: number[] = []
+      const ws: number[] = [], ls: number[] = [], os: number[] = [], ts: number[] = []
       const [ja, jb] = JOINT[f]
       for (let i = PMIN; i <= PMAX; i++) {
         const q = meas.get(frames[i])[f]
+        if (q.webT != null) ts.push(q.webT)
         if (q.w == null) continue
         ws.push(q.w); ls.push(jlen(f, i))
         // 잰 피부 경계의 가운데가 관절 축에서 옆으로 얼마나 벗어났는지 (관절 길이 대비, 축에 수직 방향 기준)
@@ -283,7 +292,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
         const dx = L[jb][0] - L[ja][0], dy = L[jb][1] - L[ja][1], d = Math.hypot(dx, dy) || 1
         os.push((((q.A[0] + q.B[0]) / 2 - q.c[0]) * -dy + ((q.A[1] + q.B[1]) / 2 - q.c[1]) * dx) / d / d)
       }
-      return [f, ws.length ? { W: median(ws), L: median(ls), n: ws.length, O: os.length ? median(os) : 0 } : { W: 0, L: 1, n: 0, O: 0 }]
+      const tw = ts.length >= 3 ? median(ts) : null   // 갈라지는 곳이 3프레임 이상에서 잡혀야 믿음
+      return [f, ws.length ? { W: median(ws), L: median(ls), n: ws.length, O: os.length ? median(os) : 0, T: tw } : { W: 0, L: 1, n: 0, O: 0, T: tw }]
     }))
     return true
   }

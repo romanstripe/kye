@@ -54,5 +54,30 @@ function measureFinger(L, m: SkinMask, f: Finger) {
   const rP = side(-1, limP); if (!rP) return fail()
   return { c, n, limM, limP, w: rM.s + rP.s, A: [c[0] - n[0] * rP.s, c[1] - n[1] * rP.s], B: [c[0] + n[0] * rM.s, c[1] + n[1] * rM.s], kindM: rM.kind, kindP: rP.kind }
 }
-// 프레임 하나에서 다섯 손가락 모두
-export const measure = (L, m: SkinMask) => Object.fromEntries(FINGERS.map((f) => [f, measureFinger(L, m, f)])) as Record<Finger, any>
+const skinAt = (m: SkinMask, x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
+// 갈라지는 곳: 이웃 손가락과의 틈(마스크가 비어 있는 곳)이 끝나는 지점.
+//  두 손가락 시작 관절의 가운데에서, 두 손가락 방향의 평균 방향으로, 둘째 마디 높이부터 손바닥 쪽으로 걸어가며
+//  틈(4px 이상 이어진 빈 곳)을 지나 처음 피부를 만나는 곳. 양쪽 이웃이 다 있으면 더 위쪽(손가락 끝 쪽)을 씀.
+//  못 찾으면(손가락이 붙어 있거나 이웃이 없는 바깥쪽) null. web=점(px), webT=시작 관절→다음 관절 길이 대비 위치(0=시작 관절)
+function findWeb(L, m: SkinMask, f: Finger) {
+  const [ia, ib] = JOINT[f], af = L[ia], bf = L[ib]
+  const dx = bf[0] - af[0], dy = bf[1] - af[1], lf = Math.hypot(dx, dy) || 1
+  let best = null
+  for (const g of [NEIGH[f].pos, NEIGH[f].neg]) {
+    if (!g) continue
+    const ag = L[JOINT[g][0]], bg = L[JOINT[g][1]], gx = bg[0] - ag[0], gy = bg[1] - ag[1], lg = Math.hypot(gx, gy) || 1
+    let ux = dx / lf + gx / lg, uy = dy / lf + gy / lg; const un = Math.hypot(ux, uy) || 1; ux /= un; uy /= un
+    const ox = (af[0] + ag[0]) / 2, oy = (af[1] + ag[1]) / 2
+    let run = 0, hit = null
+    for (let s = ((bf[0] + bg[0]) / 2 - ox) * ux + ((bf[1] + bg[1]) / 2 - oy) * uy; s > -0.3 * lf; s -= 1) {
+      if (!skinAt(m, ox + ux * s, oy + uy * s)) run++
+      else if (run >= 4) { hit = s + 0.5; break } else run = 0
+    }
+    if (hit == null) continue
+    const web = [ox + ux * hit, oy + uy * hit], t = ((web[0] - af[0]) * dx + (web[1] - af[1]) * dy) / lf / lf
+    if (t > -0.2 && t < 0.95 && (!best || t > best.webT)) best = { web, webT: t }
+  }
+  return best ?? { web: null, webT: null }
+}
+// 프레임 하나에서 다섯 손가락 모두 (폭 + 갈라지는 곳)
+export const measure = (L, m: SkinMask) => Object.fromEntries(FINGERS.map((f) => [f, { ...measureFinger(L, m, f), ...findWeb(L, m, f) }])) as Record<Finger, any>

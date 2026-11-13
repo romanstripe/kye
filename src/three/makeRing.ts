@@ -15,7 +15,7 @@ function band(y0,h,tR,pattern,mat,rows=24,pe=0.55){
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
   return new THREE.Mesh(g,mat);}
 // 파베 알: 보석 전용 반사로 반짝이게
-const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.5,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.4,clippingPlanes:[clip]});
+const stoneMat=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,metalness:0.85,roughness:0,flatShading:true,envMap:gemEnv,envMapIntensity:3.4,clippingPlanes:[clip]});
 // 파베 알 한 개: 브릴리언트처럼 테이블·크라운·파빌리온이 있는 깎인 모양
 const stoneGeo=(()=>{const g0=new THREE.LatheGeometry([new THREE.Vector2(0.001,-0.75),new THREE.Vector2(1,0),new THREE.Vector2(1,0.06),new THREE.Vector2(0.84,0.2),new THREE.Vector2(0.48,0.34),new THREE.Vector2(0.001,0.34)],12).toNonIndexed();
   // 면마다 밝고 어두움을 번갈아 칠해 다이아의 화살 무늬처럼 빛이 갈라지게 (흰 원판처럼 보이지 않게)

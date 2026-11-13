@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createStage } from './three/stage.ts'
 import type { RingInfo, HandData } from './three/stage.ts'
+import { sigOf } from './sets.ts'
+import type { SavedSet, Snapshot } from './sets.ts'
 import { analyzeVideo, analyzeFrames, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
 import HoPicker from './HoPicker.tsx'
 import FingerHints from './FingerHints.tsx'
 import type { Hint } from './FingerHints.tsx'
-import { CameraIcon } from './Landing.tsx'
+import { CameraIcon, AlbumIcon } from './Landing.tsx'
 import LiveCapture from './LiveCapture.tsx'
 import Analyzing from './Analyzing.tsx'
 import WornPanel from './WornPanel.tsx'
@@ -18,6 +20,7 @@ export type Menu = {
   initial: string
   state: () => Record<string, any>
   set: (patch: Record<string, any>) => void
+  restore: (ho: number, rings: SavedSet['rings']) => boolean   // 저장한 세트를 그대로 다시 끼움
 }
 
 const IW = 480
@@ -25,8 +28,11 @@ const IH = 854
 
 // 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 반지 데이터는 public/rings.json
 // 처음 들어오면 initialFile(영상 파일 또는 촬영한 프레임)을 분석하는 동안 분석 화면을 덮어 두고, 끝나면 걷음. 분석에 실패하면 onBack
-export default function HandStage({ onReady, onActiveRing, initialFile, onBack }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile: File | Blob[]; onBack: () => void }) {
+export default function HandStage({ onReady, onActiveRing, initialFile, onBack, sets, onSaveSet, onViewSets }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile: File | Blob[]; onBack: () => void; sets: SavedSet[]; onSaveSet: (s: Snapshot) => boolean; onViewSets: () => void }) {
   const [live, setLive] = useState(false)   // 실시간 카메라 켜짐
+  const [ho, setHo] = useState(10)   // 내 호수 (세트를 복원하면 저장된 호수로 바뀜)
+  const [saveToast, setSaveToast] = useState(false)   // "세트를 담았어요 [보기]"
+  const toastTimer = useRef(0)
   const album = useRef<HTMLInputElement>(null)
   const [an, setAn] = useState(0)   // 분석 화면의 진행 단계 (0 손 찾기, 1 굵기 재기, 3 끝)
   const [anFail, setAnFail] = useState('')
@@ -69,12 +75,12 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
       ringsRef.current = rings
       setAn(1)   // 손 찾기 끝 → 손가락 굵기 재는 중 (무대가 뒤에서 굵기를 재고, 끝나면 onMeasured)
       stage = stageRef.current = createStage(
-        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo, onMeasured: () => setAn(3), onHints: setHints, onSlots: (l) => { setSlots(l); const a = l.find((x) => x.active); if (a) active.current?.(a.id) } },
+        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo, onMeasured: () => setAn(3), onHo: setHo, onHints: setHints, onSlots: (l) => { setSlots(l); const a = l.find((x) => x.active); if (a) active.current?.(a.id) } },
         rings,
         hand,
       )
       if (wantDebug) stage.setDebug(true)
-      ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: rings[0].id })
+      ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, restore: stage.restore, initial: rings[0].id })
     }).catch((e) => !dead && setAnFail(e instanceof Error ? e.message : '분석에 실패했어요'))
     return () => {
       dead = true
@@ -92,6 +98,18 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
     if (!setOpen && pick) choose(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setOpen])
+
+  // 지금 세트가 저장돼 있는지(하트) / 담기. 같은 구성이 이미 있으면 새로 만들지 않고 하트만 꽉 찬 채로 둠
+  const snap = stageRef.current?.snapshot()
+  const saved = !!snap && sets.some((s) => sigOf(s) === sigOf(snap))
+  const save = () => {
+    const s = stageRef.current?.snapshot()
+    if (!s || !onSaveSet(s)) return
+    setSaveToast(true)
+    clearTimeout(toastTimer.current)
+    toastTimer.current = window.setTimeout(() => setSaveToast(false), 3500)
+  }
+  useEffect(() => () => clearTimeout(toastTimer.current), [])
 
   const onFile = async (f: File | Blob[] | undefined) => {
     if (!f || !stageRef.current) return
@@ -142,12 +160,20 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
         </div>
       </div>
       {pick && <div className="toast">반지 낄 손가락을 눌러 주세요</div>}
+      {saveToast && (
+        <div className="toast" role="status">
+          세트를 담았어요
+          <button type="button" onClick={() => { setSaveToast(false); onViewSets() }}>보기</button>
+        </div>
+      )}
       <WornPanel
         open={setOpen}
         slots={slots}
         rings={ringsRef.current}
         thumbs={(stageRef.current?.thumbs ?? {}) as Record<string, string>}
         pick={pick}
+        saved={saved}
+        onSave={save}
         ignore={setBtn}
         onClose={() => setSetOpen(false)}
         onSwitch={(i) => stageRef.current?.switchSlot(i)}
@@ -165,7 +191,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
           반지 세트
           {slots.length > 1 && <span className="cnt">{slots.length}</span>}
         </button>
-        <HoPicker onChange={(v) => stageRef.current?.setHo(v)} />
+        <HoPicker value={ho} onChange={(v) => { setHo(v); stageRef.current?.setHo(v) }} />
         <button
           className="chip"
           hidden
@@ -179,6 +205,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
         </button>
         <button
           className="chip"
+          hidden={!wantDebug}
           aria-pressed={debug}
           onClick={() => {
             stageRef.current?.setDebug(!debug)
@@ -192,8 +219,8 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack }
             <button className="chip icon" aria-label="내 손 다시 찍기" onClick={() => setLive(true)}>
               <CameraIcon size={18} />
             </button>
-            <button className="chip" onClick={() => album.current?.click()}>
-              앨범
+            <button className="chip icon" aria-label="앨범에서 영상 올리기" onClick={() => album.current?.click()}>
+              <AlbumIcon size={18} />
             </button>
           </>
         ) : (

@@ -8,6 +8,15 @@ export const CameraIcon = ({ size = 20 }: { size?: number }) => (
   </svg>
 )
 
+// 앨범(사진 액자 모양 선 아이콘)
+export const AlbumIcon = ({ size = 20 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2.5" />
+    <circle cx="9" cy="10" r="1.7" />
+    <path d="M21 16l-5-5-9 9" />
+  </svg>
+)
+
 // public/landing/ 의 반지 그림 14개: 큰 것(NN_ID.png)과 작은 것(NN_ID_s.png)
 const IDS = ['01_SOL', '02_S', '03_MV', '04_ND', '05_B', '06_Q', '07_L', '08_CL', '09_SP', '10_I', '11_BB', '12_MG', '13_PE', '14_CC']
 const big = (k: number) => `/landing/${IDS[((k % IDS.length) + IDS.length) % IDS.length]}.png`
@@ -63,7 +72,7 @@ export default function Landing({ onFile }: { onFile: (f: File | Blob[]) => void
       <div className="lbot">
         <h1>사기 전에,<br />내 손에 먼저 껴 봐요</h1>
         <p className="lead">손 영상 하나로 반지를 넘겨 보고, 겹쳐 끼고, 호수까지 맞춰 봐요.</p>
-        <button className="btn dark" onClick={() => setLive(true)}>내 손으로 시작하기</button>
+        <button className="btn dark" onClick={() => setLive(true)}>카메라 켜고 찍기</button>
         <button className="btn light" onClick={() => album.current?.click()}>앨범에서 업로드하기</button>
         <input
           ref={album}

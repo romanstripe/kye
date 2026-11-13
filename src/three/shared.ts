@@ -27,7 +27,7 @@ export const M = (c, met, rough) => new THREE.MeshStandardMaterial({ color: c, m
 // 원본의 전역 변수(let)들. 모듈 사이에서 바꿔 써야 해서 한 객체에 모음.
 export const S = {
   scene: mainScene,
-  HO: 17.5, FD: (40 + 17.5) / Math.PI,   // 호수 → 안쪽 둘레(40+호수 mm) → 지름
+  HO: 10, FD: (40 + 10) / Math.PI,   // 호수 → 안쪽 둘레(40+호수 mm) → 지름
   WMM: 4.8, WALL: 1.8, METAL: 'PG', PAVE: 'none', GW: 0, GPAVE: false, GMETAL: 'same', RMETAL: 'same',
   FINGER: 'ring',   // 이 반지를 끼운 손가락
   GAPMM: 2.5,   // 앞 반지와의 간격(mm), 같은 손가락에 쌓을 때

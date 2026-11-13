@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 const HOS = Array.from({ length: 41 }, (_, i) => 5 + i * 0.5)
 
 // 위 줄의 "내 호수" 버튼과 작은 목록. 열 때 고른 호수가 가운데 오게, 바깥을 누르면 닫힘
-export default function HoPicker({ onChange }: { onChange: (ho: number) => void }) {
-  const [ho, setHo] = useState(17.5)
+export default function HoPicker({ value: ho, onChange }: { value: number; onChange: (ho: number) => void }) {
   const [open, setOpen] = useState(false)
   const btn = useRef<HTMLButtonElement>(null)
   const pop = useRef<HTMLDivElement>(null)
@@ -43,7 +42,6 @@ export default function HoPicker({ onChange }: { onChange: (ho: number) => void 
               aria-selected={v === ho}
               onClick={() => {
                 onChange(v)
-                setHo(v)
                 setOpen(false)
               }}
             >

@@ -60,6 +60,7 @@ export default function LiveCapture({ onDone, onClose }: { onDone: (frames: Blob
     <div className="live" role="dialog" aria-label="카메라">
       <video ref={vid} playsInline muted autoPlay />
       <button className="live-x" aria-label="닫기" onClick={onClose}>✕</button>
+      {n !== null && !err && <div className="live-tip" role="status">손을 벌리고 천천히 돌릴수록<br />시뮬레이션이 안정적이에요</div>}
       <div className="live-bot">
         {err ? (
           <>

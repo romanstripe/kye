@@ -8,8 +8,8 @@ export type Slot = { id: string; active: boolean; finger: string }   // 끼운 �
 
 // 끼운 반지 목록 (위 줄의 "반지 세트"를 누르면 왼쪽에 펼쳐짐). 지금 손가락의 층만 보여주고 위쪽이 손톱 쪽
 export default function WornPanel({
-  open, slots, rings, thumbs, pick, ignore,
-  onClose, onSwitch, onRemove, onTogglePick,
+  open, slots, rings, thumbs, pick, ignore, saved,
+  onClose, onSwitch, onRemove, onTogglePick, onSave,
 }: {
   open: boolean
   slots: Slot[]
@@ -21,6 +21,8 @@ export default function WornPanel({
   onSwitch: (i: number) => void
   onRemove: (i: number) => void
   onTogglePick: () => void
+  saved: boolean   // 지금 세트가 이미 저장돼 있음 (하트가 꽉 참)
+  onSave: () => void
 }) {
   const root = useRef<HTMLDivElement>(null)
 
@@ -87,6 +89,12 @@ export default function WornPanel({
         )
       })}
       {used.length === 1 && used[0] !== 'ring' && <span className="lbl">{FINGER_NAME[used[0]]}</span>}
+      <div className="hsep" />
+      <button type="button" className={`heart${saved ? ' on' : ''}`} aria-label={saved ? '담은 세트' : '이 세트 담기'} aria-pressed={saved} onClick={onSave}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.4 4.5 6.6 4.5c2 0 3.4 1.1 4.4 2.6l1 1.4 1-1.4c1-1.5 2.4-2.6 4.4-2.6 3.2 0 5.1 3 3.9 6.4-1.8 5-9.3 9.6-9.3 9.6z" />
+        </svg>
+      </button>
     </div>
   )
 }

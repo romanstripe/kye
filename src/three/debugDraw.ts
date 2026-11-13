@@ -28,9 +28,6 @@ export function drawHandDebug(cv2: HTMLCanvasElement, L: number[][], mk: SkinMas
     const line = (x1, y1, x2, y2) => { x.beginPath(); x.moveTo(x1 * k, y1 * k); x.lineTo(x2 * k, y2 * k); x.stroke() }
     const head = (s) => { const a = Math.atan2(uy, ux); line(ex, ey, ex - 11 * Math.cos(a - s), ey - 11 * Math.sin(a - s)); line(ex, ey, ex - 11 * Math.cos(a + s), ey - 11 * Math.sin(a + s)) }
     ;[['#fff', 5.5], [col, 3]].forEach(([c, w]) => { x.strokeStyle = c; x.lineWidth = w * k; line(X - uy * R, Y + ux * R, X + uy * R, Y - ux * R); line(X, Y, ex, ey); head(0.5) })
-    const pt = `${p[7] >= 0 ? '+' : ''}${p[7].toFixed(0)}°`   // pitch: + 손끝이 카메라 쪽, - 멀어짐
-    x.font = `700 ${13 * k}px sans-serif`; x.lineWidth = 4 * k; x.strokeStyle = 'rgba(0,0,0,.75)'; x.fillStyle = col
-    x.strokeText(pt, (ex + 6) * k, (ey + 4) * k); x.fillText(pt, (ex + 6) * k, (ey + 4) * k)
   })
   L.forEach((p, i) => { const big = i === 13 || i === 14; x.beginPath(); x.arc(p[0] * k, p[1] * k, (big ? 7 : 3) * k, 0, TAU); x.fillStyle = big ? '#ff2d2d' : '#ffffff'; x.fill(); x.lineWidth = 1.2 * k; x.strokeStyle = big ? '#fff' : '#39d98a'; x.stroke() })
 }

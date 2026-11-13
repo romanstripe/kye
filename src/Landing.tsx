@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import LiveCapture from './LiveCapture.tsx'
+import { useEffect, useRef } from 'react'
 
 export const CameraIcon = ({ size = 20 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -13,8 +12,8 @@ const IDS = ['01_SOL', '02_S', '03_MV', '04_ND', '05_B', '06_Q', '07_L', '08_CL'
 const big = (k: number) => `/landing/${IDS[((k % IDS.length) + IDS.length) % IDS.length]}.png`
 
 // 처음 화면: 반지가 2.2초마다 넘어가는 소개 + 내 손으로 시작 / 예시 손으로 둘러보기
-export default function Landing({ onFile, onDemo }: { onFile: (f: File | Blob[]) => void; onDemo: () => void }) {
-  const [live, setLive] = useState(false)   // 실시간 카메라 켜짐
+export default function Landing({ onFile, onDemo }: { onFile: (f: File) => void; onDemo: () => void }) {
+  const file = useRef<HTMLInputElement>(null)
   const album = useRef<HTMLInputElement>(null)
   const bigRef = useRef<HTMLDivElement>(null)
 
@@ -63,7 +62,7 @@ export default function Landing({ onFile, onDemo }: { onFile: (f: File | Blob[])
       <div className="lbot">
         <h1>사기 전에,<br />내 손에 먼저 껴 봐요</h1>
         <p className="lead">손 영상 하나로 반지를 넘겨 보고, 겹쳐 끼고, 호수까지 맞춰 봐요.</p>
-        <button className="btn dark" onClick={() => setLive(true)}>내 손으로 시작하기</button>
+        <button className="btn dark" onClick={() => file.current?.click()}>내 손으로 시작하기</button>
         <button className="btn light" onClick={onDemo}>예시 손으로 둘러보기</button>
         <button className="btn link" onClick={() => album.current?.click()}>앨범에서 영상 고르기</button>
         <input
@@ -77,8 +76,19 @@ export default function Landing({ onFile, onDemo }: { onFile: (f: File | Blob[])
             if (f) onFile(f)
           }}
         />
+        <input
+          ref={file}
+          type="file"
+          accept="video/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) onFile(f)
+          }}
+        />
       </div>
-      {live && <LiveCapture onDone={onFile} onClose={() => setLive(false)} />}
     </section>
   )
 }

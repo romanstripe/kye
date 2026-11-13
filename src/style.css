@@ -126,11 +126,3 @@ button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .addl { width: 44px; height: 44px; border-radius: 50%; border: 1.5px dashed rgba(0, 0, 0, 0.3); background: none; font-size: 20px; line-height: 1; color: var(--ink); cursor: pointer; margin-bottom: 6px; }
 .addl[aria-pressed='true'] { background: var(--ink); color: #fff; border-style: solid; border-color: var(--ink); }
 .stack .lbl { font-size: 9.5px; font-weight: 600; color: var(--sub); margin-top: 4px; }
-
-/* 실시간 카메라 */
-.live { position: fixed; inset: 0; z-index: 50; background: #000; display: flex; flex-direction: column; justify-content: flex-end; }
-.live video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.live-x { position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 18px; cursor: pointer; }
-.live-bot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 0 20px calc(28px + env(safe-area-inset-bottom)); }
-.live-btn { font: inherit; font-size: 16px; font-weight: 700; border: 0; border-radius: 999px; padding: 15px 36px; background: #fff; color: #111; cursor: pointer; }
-.live-btn:disabled { opacity: 0.6; }

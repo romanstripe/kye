@@ -13,7 +13,7 @@ export default function App() {
   const [view, setView] = useState<'list' | 'detail'>('list')
   const startY = useRef<number | null>(null)
   const [screen, setScreen] = useState<'landing' | 'main'>('landing')
-  const [file, setFile] = useState<File | Blob[] | undefined>()   // 랜딩에서 찍은 영상(파일) 또는 실시간 촬영 프레임
+  const [file, setFile] = useState<File | undefined>()   // 랜딩에서 찍은 영상
 
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     startY.current = e.clientY

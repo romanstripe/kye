@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { createStage } from './three/stage.ts'
 import type { RingInfo, HandData } from './three/stage.ts'
-import { analyzeVideo, analyzeFrames, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
+import { analyzeVideo, revokeHand, FRAME_COUNT } from './hand/analyze.ts'
 import HoPicker from './HoPicker.tsx'
 import FingerHints from './FingerHints.tsx'
 import type { Hint } from './FingerHints.tsx'
 import { CameraIcon } from './Landing.tsx'
-import LiveCapture from './LiveCapture.tsx'
 import WornPanel from './WornPanel.tsx'
 import type { Slot } from './WornPanel.tsx'
 
@@ -24,11 +23,11 @@ const IH = 854
 
 // 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 데이터는 public/rings.json, public/demo/hand.json
 // 내 영상을 올리면 그 손으로, 실패하거나 안 올리면 예시 손으로 보여줌
-export default function HandStage({ onReady, onActiveRing, initialFile }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile?: File | Blob[] }) {
-  const [live, setLive] = useState(false)   // 실시간 카메라 켜짐
+export default function HandStage({ onReady, onActiveRing, initialFile }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile?: File }) {
+  const file = useRef<HTMLInputElement>(null)
   const album = useRef<HTMLInputElement>(null)
   const pending = useRef(initialFile)
-  const run = useRef<(f?: File | Blob[]) => void>(() => {})
+  const run = useRef<(f?: File) => void>(() => {})
   const img = useRef<HTMLImageElement>(null)
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
@@ -98,12 +97,12 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setOpen])
 
-  const onFile = async (f: File | Blob[] | undefined) => {
+  const onFile = async (f: File | undefined) => {
     if (!f || !stageRef.current) return
     setMsg('')
     setBusy(0)
     try {
-      const hand = await (Array.isArray(f) ? analyzeFrames : analyzeVideo)(f as never,(n, _t, st) => (setBusy(n), st && setStage(st)))
+      const hand = await analyzeVideo(f, (n, _t, st) => (setBusy(n), st && setStage(st)))
       const old = mine.current
       mine.current = hand
       stageRef.current?.setHand(hand)
@@ -196,7 +195,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
         </button>
         {busy === null ? (
           <>
-            <button className="chip icon" aria-label="내 손 다시 찍기" onClick={() => setLive(true)}>
+            <button className="chip icon" aria-label="내 손 다시 찍기" onClick={() => file.current?.click()}>
               <CameraIcon size={18} />
             </button>
             <button className="chip" onClick={() => album.current?.click()}>
@@ -231,8 +230,18 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
             e.target.value = ''
           }}
         />
+        <input
+          ref={file}
+          type="file"
+          accept="video/*"
+          capture="environment"
+          hidden
+          onChange={(e) => {
+            onFile(e.target.files?.[0])
+            e.target.value = ''
+          }}
+        />
       </div>
-      {live && <LiveCapture onDone={(fr) => { setLive(false); onFile(fr) }} onClose={() => setLive(false)} />}
     </>
   )
 }

@@ -7,6 +7,7 @@ import FingerHints from './FingerHints.tsx'
 import type { Hint } from './FingerHints.tsx'
 import { CameraIcon } from './Landing.tsx'
 import LiveCapture from './LiveCapture.tsx'
+import Analyzing from './Analyzing.tsx'
 import WornPanel from './WornPanel.tsx'
 import type { Slot } from './WornPanel.tsx'
 
@@ -22,13 +23,14 @@ export type Menu = {
 const IW = 480
 const IH = 854
 
-// 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 데이터는 public/rings.json, public/demo/hand.json
-// 내 영상을 올리면 그 손으로, 실패하거나 안 올리면 예시 손으로 보여줌
-export default function HandStage({ onReady, onActiveRing, initialFile }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile?: File | Blob[] }) {
+// 손 사진 + 그 위에 3D 반지(그림자 캔버스, 반지 캔버스). 반지 데이터는 public/rings.json
+// 처음 들어오면 initialFile(영상 파일 또는 촬영한 프레임)을 분석하는 동안 분석 화면을 덮어 두고, 끝나면 걷음. 분석에 실패하면 onBack
+export default function HandStage({ onReady, onActiveRing, initialFile, onBack }: { onReady: (m: Menu) => void; onActiveRing?: (id: string) => void; initialFile: File | Blob[]; onBack: () => void }) {
   const [live, setLive] = useState(false)   // 실시간 카메라 켜짐
   const album = useRef<HTMLInputElement>(null)
-  const pending = useRef(initialFile)
-  const run = useRef<(f?: File | Blob[]) => void>(() => {})
+  const [an, setAn] = useState(0)   // 분석 화면의 진행 단계 (0 손 찾기, 1 굵기 재기, 3 끝)
+  const [anFail, setAnFail] = useState('')
+  const [anDone, setAnDone] = useState(false)   // 분석 화면을 걷었는지
   const img = useRef<HTMLImageElement>(null)
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
@@ -36,7 +38,6 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
   const [debug, setDebug] = useState(false)
   const [info, setInfo] = useState('')
   const stageRef = useRef<ReturnType<typeof createStage> | null>(null)
-  const demo = useRef<HandData | null>(null)
   const mine = useRef<HandData | null>(null)
   const [busy, setBusy] = useState<number | null>(null) // 처리한 프레임 수
   const [stage, setStage] = useState('')
@@ -57,30 +58,22 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
   useEffect(() => {
     let stage: ReturnType<typeof createStage> | null = null
     let dead = false
+    // 반지 목록과 손 분석을 같이 시작. 손이 준비돼야 무대를 만듦
     Promise.all([
       fetch('/rings.json').then((r) => r.json() as Promise<{ rings: RingInfo[] }>).then((j) => j.rings),
-      fetch('/demo/hand.json').then((r) => r.json()),
-    ]).then(([rings, raw]) => {
-      if (dead) return
-      // public/demo/hand.json: ringPose=프레임별 반지 자리, landmarks=손 21점, playFrom~playTo=왕복 재생 구간
-      const hand: HandData = {
-        N: raw.count,
-        P: raw.ringPose,
-        LMS: raw.landmarks,
-        pmin: raw.playFrom,
-        pmax: raw.playTo,
-        frames: Array.from({ length: raw.count }, (_, i) => `/demo/frames/${String(i).padStart(2, '0')}.jpg`),
-      }
-      demo.current = hand
+      (Array.isArray(initialFile) ? analyzeFrames : analyzeVideo)(initialFile as never, () => {}),
+    ]).then(([rings, hand]) => {
+      if (dead) return revokeHand(hand)
+      mine.current = hand
       ringsRef.current = rings
+      setAn(1)   // 손 찾기 끝 → 손가락 굵기 재는 중 (무대가 뒤에서 굵기를 재고, 끝나면 onMeasured)
       stage = stageRef.current = createStage(
-        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo, onHints: setHints, onSlots: (l) => { setSlots(l); const a = l.find((x) => x.active); if (a) active.current?.(a.id) } },
+        { img: img.current!, shadow: shadow.current!, out: out.current!, debug: dbg.current!, onInfo: setInfo, onMeasured: () => setAn(3), onHints: setHints, onSlots: (l) => { setSlots(l); const a = l.find((x) => x.active); if (a) active.current?.(a.id) } },
         rings,
         hand,
       )
       ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, initial: rings[0].id })
-      if (pending.current) { const f = pending.current; pending.current = undefined; run.current(f) }
-    })
+    }).catch((e) => !dead && setAnFail(e instanceof Error ? e.message : '분석에 실패했어요'))
     return () => {
       dead = true
       stage?.stop()
@@ -117,8 +110,6 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
     }
   }
 
-  run.current = onFile
-
   return (
     <>
       <div
@@ -133,7 +124,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
         onPointerCancel={() => stageRef.current?.dragEnd()}
       >
         <div className="zw">
-          <img ref={img} src="/demo/frames/41.jpg" alt="왼손 사진 위에 고른 반지" draggable={false} />
+          <img ref={img} alt="왼손 사진 위에 고른 반지" draggable={false} />
           <canvas ref={shadow} />
           <canvas ref={out} />
           <canvas ref={dbg} width={IW * 2} height={IH * 2} />
@@ -233,6 +224,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile }: { onRe
         />
       </div>
       {live && <LiveCapture onDone={(fr) => { setLive(false); onFile(fr) }} onClose={() => setLive(false)} />}
+      {!anDone && <Analyzing target={an} error={anFail} onBack={onBack} onFinish={() => setAnDone(true)} />}
     </>
   )
 }

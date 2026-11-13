@@ -21,8 +21,8 @@ export type RingInfo = {
   pave: Partial<Record<'semi' | 'alt' | 'full' | 'both', PaveOpt>>
 }
 // frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
-export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number; custom?: boolean }
-type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void; onSlots?: (list: { id: string; active: boolean; finger: string }[]) => void; onHints?: (list: { f: string; name: string; x: number; y: number }[]) => void }
+export type HandData = { N: number; P: (number[] | null)[]; LMS: number[][][]; frames: string[]; pmin: number; pmax: number }
+type StageEls = { img: HTMLImageElement; shadow: HTMLCanvasElement; out: HTMLCanvasElement; debug?: HTMLCanvasElement; onInfo?: (s: string) => void; onMeasured?: () => void; onSlots?: (list: { id: string; active: boolean; finger: string }[]) => void; onHints?: (list: { f: string; name: string; x: number; y: number }[]) => void }
 
 
 
@@ -45,9 +45,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let playDir = -1, lastPlay = 0, resumeAt = 0, dragX = null, dragY = 0, drag0 = 0
   function setHand(h) {
     N = h.N; P = h.P; LMS = h.LMS; SM = smoothLandmarks(LMS); frames = h.frames; PMIN = h.pmin; PMAX = h.pmax
-    // 내가 올린 영상은 예시 손에 맞춰 잡은 보정(손등 기울기, 옆 이동, 옆 조임)을 끔
-    T = h.custom ? MINE : DEMO; fixed = null
-    if (!h.custom) frames.forEach(u => { new Image().src = u })   // 미리 받아두기 (내 영상은 사진이 커서 메모리 때문에 생략)
+    fixed = null
     cur = PMAX; playDir = -1; resumeAt = 0; dragX = null
     masks.clear(); meas.clear(); fingerMemo = null; inflight.clear(); warmId++; warm(); report()   // 손 영상을 불러오면 재생 구간의 다섯 손가락 폭을 미리 재 둠 (끝나면 다시 재지 않음)
   }
@@ -110,12 +108,9 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     }
   }
 
-  // 손 종류별 설정. 예시 손: 이 영상에 맞춰 잡은 보정값 + 저장된 반지 자리(P). 내 영상: 보정 없음, 잰 약지 폭으로 크기·자리 결정
-  const DEMO = { tilt: 1.8, lsh: 0.07, sqz: 0.89, frk: 0.85, measured: false }   // tilt 손등 기울기 배수, lsh 옆 이동, sqz 옆 조임, frk 크기 배율
-  const MINE = { tilt: 1, lsh: 0, sqz: 1, frk: 1, measured: true }
-  let T = DEMO
-  let OX = 0, OY = 0, DZK = 0.3, FEATHER = 0.8, OCCK = 0.89
-  const V = (L, i) => new THREE.Vector3(L[i][0] + OX, -(L[i][1] + OY), -L[i][2])   // DZK: 손가락이 카메라 쪽으로 기운 정도(깊이)를 얼마나 믿을지
+  // 반지 크기·자리는 보정 없이, 잰 손가락 폭으로 결정
+  let DZK = 0.3, FEATHER = 0.8, OCCK = 0.89
+  const V = (L, i) => new THREE.Vector3(L[i][0], -L[i][1], -L[i][2])   // DZK: 손가락이 카메라 쪽으로 기운 정도(깊이)를 얼마나 믿을지
   function placeOcc(L, rad) {
     SEGS.forEach(([i, j, k], n) => {
       const a = V(L, i), b = V(L, j), m = occ[n], d = b.clone().sub(a), len = d.length()
@@ -129,7 +124,6 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     for (let k = -2; k <= 2; k++) { const L = LMS[Math.max(0, Math.min(N - 1, i + k))]; if (!L) continue; const a = V(L, 5).sub(V(L, 0)), b = V(L, 17).sub(V(L, 0)); s.add(a.cross(b).normalize()) }
     const Lr = LMS[PMAX], ref = V(Lr, 5).sub(V(Lr, 0)).cross(V(Lr, 17).sub(V(Lr, 0))); if (ref.z < 0) s.negate(); return s.normalize()
   }
-  function tiltUp(d) { const v = new THREE.Vector3(d.x * T.tilt, d.y * T.tilt, d.z); return v.normalize() }   // 손등 기울기를 TILT배로 키움
   function frameFor(axis, nrm, bl = 0.4) { // 손등 방향(축에 수직) 구하고 회전 만들기
     const Y = nrm.clone().sub(axis.clone().multiplyScalar(nrm.dot(axis)))
     const camv = new THREE.Vector3(0, 0, 1).sub(axis.clone().multiplyScalar(axis.z))
@@ -138,32 +132,20 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const Z = axis.clone().negate(), qH = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(Y, Z), Y, Z))
     return { qR, qH }
   }
-  // 손가락별 반지 자리 [cx,cy,cz,dx,dy,dz,반지 안쪽 반지름(px), 폭으로 잰 자리면 true]. 없으면 null
-  //  - 잰 폭이 있으면(내 영상은 항상): 중심 = 관절 두 점을 4:6, 방향 = 관절 방향, 크기 = 그 손가락 고정 폭 × (이 프레임 관절 길이 ÷ 잰 프레임들 길이)
-  //  - 예시 손의 약지: 저장된 반지 자리(P)
-  //  - 예시 손의 다른 손가락: 폭을 다 재기 전에는 약지 자리 비율로 임시 배치, 다 재고 나면 위의 잰 폭 방식
-  const DEMO_K = { thumb: 1.25, index: 0.98, middle: 1.05, ring: 1, pinky: 0.85 }
+  // 손가락별 반지 자리 [cx,cy,cz,dx,dy,dz,반지 안쪽 반지름(px)]. 폭을 아직 못 쟀으면 null
+  //  - 방향 = 관절 방향, 크기 = 그 손가락 고정 폭 × (이 프레임 관절 길이 ÷ 잰 프레임들 길이)
+  //  - 중심 = 시작 관절→다음 관절 위의 자리 r (0~1): 갈라지는 곳 + (반지 폭/2 + 1.5mm) 위, 갈라지는 곳을 못 찾았으면 0.6
+  //    (mm는 지금 잰 px/mm = 2·fr/FD)
   const jlen = (f, i) => { const L = SM[i]; if (!L) return 0; const [a, b] = JOINT[f]; return Math.hypot(L[b][0] - L[a][0], L[b][1] - L[a][1]) }
   function poseOf(f) {   // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산. 원래 점(LMS)은 폭 재기·디버그 그리기용
     const L = SM[cur]; if (!L) return null
     const [ia, ib] = JOINT[f], a = L[ia], b = L[ib]
     const fx = fixed?.[f], len = jlen(f, cur)
-    const jd = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, sh = fx ? fx.O * len : 0   // 피부 가운데로 옆 이동 (축에 수직)
-    let byWidth = null
-    if (fx && fx.n && len > 0) {
-      const fr = fx.W * len / fx.L / 2
-      // 시작 관절→다음 관절 위의 자리(0~1). 예시 손은 예전 그대로 0.4.
-      // 내 손: 갈라지는 곳 + (반지 폭/2 + 1.5mm) 위. 갈라지는 곳을 못 찾았으면 0.6 (mm는 지금 잰 px/mm = 2·fr/FD)
-      let r = 0.4
-      if (T.measured) r = fx.T != null ? Math.min(1.15, (fx.T * len + ((SLOTS.find(sl => sl.st.FINGER === f)?.st.WMM ?? 0) / 2 + 1.5) * 2 * fr / S.FD) / len) : 0.6
-      byWidth = [a[0] + (b[0] - a[0]) * r - (b[1] - a[1]) / jd * sh, a[1] + (b[1] - a[1]) * r + (b[0] - a[0]) / jd * sh, a[2] + (b[2] - a[2]) * r, b[0] - a[0], b[1] - a[1], b[2] - a[2], fr, true]
-    }
-    if (T.measured) return byWidth
-    const Q = P[cur]; if (!Q) return null
-    if (f === 'ring') return Q
-    if (byWidth) return byWidth
-    const ox = Q[0] - (L[13][0] + L[14][0]) / 2, oy = Q[1] - (L[13][1] + L[14][1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2], n = Math.hypot(dx, dy, dz) || 1
-    return [(a[0] + b[0]) / 2 + ox, (a[1] + b[1]) / 2 + oy, (a[2] + b[2]) / 2, dx / n, dy / n, dz / n, Q[6] * DEMO_K[f]]
+    if (!(fx && fx.n && len > 0)) return null
+    const jd = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, sh = fx.O * len   // 피부 가운데로 옆 이동 (축에 수직)
+    const fr = fx.W * len / fx.L / 2
+    const r = fx.T != null ? Math.min(1.15, (fx.T * len + ((SLOTS.find(sl => sl.st.FINGER === f)?.st.WMM ?? 0) / 2 + 1.5) * 2 * fr / S.FD) / len) : 0.6
+    return [a[0] + (b[0] - a[0]) * r - (b[1] - a[1]) / jd * sh, a[1] + (b[1] - a[1]) * r + (b[0] - a[0]) / jd * sh, a[2] + (b[2] - a[2]) * r, b[0] - a[0], b[1] - a[1], b[2] - a[2], fr]
   }
   function hideAll() { SLOTS.forEach(({ objs: o }) => { if (!o) return; [o.ring, o.ring2].forEach(g => { if (g) { g.visible = false; g.userData.stones.visible = false } }); if (o.head) o.head.visible = false }) }
   function place() {
@@ -173,15 +155,14 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const refF = poseOf('ring') ? 'ring' : used.find(f => poses[f])   // 가림 원통·잘라내기 평면 기준 손가락 (약지가 있으면 약지)
     if (!refF) { usedW = null; outerPx = null; S.MASK = null; hideOcc(); return }
     if (!poses[refF]) poses[refF] = poseOf(refF)
-    const FD = S.FD, qd = tiltUp(dorsal(cur))
+    const FD = S.FD, qd = dorsal(cur)
     let ref = null
     used.forEach(f => {
       const pf = poses[f]; if (!pf) return
-      const [cx, cy, cz, dx, dy, dz, fr] = pf, bw = pf[7] === true, frk = bw ? 1 : T.frk, lsh = bw ? 0 : T.lsh, sqz = bw ? 1 : T.sqz   // 잰 폭 자리는 예시 영상용 보정(크기 배율·옆 이동·옆 조임)을 쓰지 않음
+      const [cx, cy, cz, dx, dy, dz, fr] = pf
       const axis = new THREE.Vector3(dx, -dy, -dz * DZK).normalize(), pos = new THREE.Vector3(cx, -cy, -cz)
-      const frK = fr * frk, pxmm = 2 * frK / FD, Rin = frK, gap = 0.2 * pxmm
+      const frK = fr, pxmm = 2 * frK / FD, Rin = frK, gap = 0.2 * pxmm
       const { qR, qH } = frameFor(axis, qd, 0.1)   // 손이 돈 만큼보다 조금 더 돌려서 알의 옆면(크라운·발)이 보이게
-      pos.add(new THREE.Vector3(1, 0, 0).applyQuaternion(qR).multiplyScalar(Rin * lsh))   // lsh: 반지를 손가락 옆 방향으로 살짝 옮김 (이 영상에서 왼쪽으로 치우쳐 보여서)
       const u2 = Math.hypot(dx, dy) || 1
       if (f === refF) ref = { frK, cx, cy }
       // 이 손가락의 뒤쪽 잘라내기 평면: 관절 방향(축)에 수직인 면 중 카메라 쪽 방향, 반지 중심에서 살짝 뒤. 같은 손가락에 여러 개 끼면 여유를 더 줌
@@ -196,11 +177,11 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
         const st = sl.st, o = sl.objs; if (!o || st.FINGER !== f) return
         const n = idx.indexOf(si), offpx = (offs[n] - offs[0]) * pxmm   // 처음 낀 반지 기준으로 축을 따라 옮길 거리(px)
         const bandW = st.WMM * pxmm, W2 = st.GW * pxmm
-        setRing(o.ring, qR, pos, Rin, bandW, axis, offpx, paveCfgOf(st), sqz)
-        if (o.ring2) setRing(o.ring2, qR, pos, Rin, W2, axis, offpx + bandW / 2 + gap + W2 / 2, st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null, sqz)
+        setRing(o.ring, qR, pos, Rin, bandW, axis, offpx, paveCfgOf(st))
+        if (o.ring2) setRing(o.ring2, qR, pos, Rin, W2, axis, offpx + bandW / 2 + gap + W2 / 2, st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null)
         const t = o.ring.userData.t
         if (si === AI) { outerPx = 2 * Rin * (1 + t); usedW = fr * 2; S.pxmmNow = pxmm }
-        const MK = { cx: cx + dx / u2 * offpx, cy: cy + dy / u2 * offpx, ux: dx / u2, uy: dy / u2, hw: Rin * sqz * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
+        const MK = { cx: cx + dx / u2 * offpx, cy: cy + dy / u2 * offpx, ux: dx / u2, uy: dy / u2, hw: Rin * (1 + t * 1.8) + 2 + 0.6 * pxmm, hl: bandW + W2 + Rin * 1.5 }   // 끝을 자르지 않도록 넉넉하게
         const head = o.head
         if (head) {
           const qq = head.userData.slide ? qR.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2)) : qH; head.quaternion.copy(qq); head.userData.q0 = qq.clone(); head.userData.axis = axis.clone(); slideHead(head); head.position.copy(pos).add(axis.clone().multiplyScalar(offpx)); head.scale.setScalar(pxmm); head.visible = true
@@ -211,7 +192,6 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     })
     S.MASK = MASKS[0] || null
     if (!ref) { hideOcc(); return }
-    if (T.measured) { OX = 0; OY = 0 } else { const L = SM[cur]; OX = ref.cx - (L[13][0] + L[14][0]) / 2; OY = ref.cy - (L[13][1] + L[14][1]) / 2 }
     placeOcc(SM[cur], ref.frK * OCCK)
   }
 
@@ -307,7 +287,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
       p = skinMask(url).then(m => {
         if (id !== warmId) return
         masks.set(url, m); const L = LMS[i]; if (L) meas.set(url, measure(L, m))
-        if (refix()) show(cur); else { report(); if (DEBUG && frames[cur] === url) drawDebug() }
+        if (refix()) { show(cur); els.onMeasured?.() } else { report(); if (DEBUG && frames[cur] === url) drawDebug() }
       }).catch(() => {}).finally(() => inflight.delete(url))
       inflight.set(url, p)
     }
@@ -315,7 +295,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   }
   function wantMask() { if (DEBUG) ensureMask(cur) }
   async function warm() { const id = warmId; for (let i = PMIN; i <= PMAX && id === warmId; i++) await ensureMask(i) }   // 재생 구간 전체를 미리 계산
-  function report() { if (els.onInfo) (T.measured ? reportMine : reportDemo)(els.onInfo) }
+  function report() { if (els.onInfo) reportMine(els.onInfo) }
   // 내 영상: 폭 재는 중 / 실패 / (디버그) 고정 폭과 반지 크기
   // 손가락별: 재생 구간에서 양쪽 경계가 잡힌 프레임들의 폭 가운데값(잰 프레임 수)
   let fingerMemo: { n: number; txt: string } | null = null   // 측정 개수가 같으면 다시 계산하지 않음 (끝나면 그대로)
@@ -339,17 +319,6 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (!DEBUG) { say(''); return }
     say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : '-'}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : '-'}px
 ${fingerLine()}${msLine()}`)
-  }
-  // 예시 손: (디버그) 잰 폭 가운데값만 보여줌. 반지 크기에는 쓰지 않음
-  function reportDemo(say: (s: string) => void) {
-    if (!DEBUG) { say(''); return }
-    const ok: number[] = [], total = PMAX - PMIN + 1; let done = 0
-    for (let i = PMIN; i <= PMAX; i++) { const r = meas.get(frames[i]); if (!r) continue; done++; if (r.ring.w != null) ok.push(r.ring.w) }
-    const cu = meas.get(frames[cur])?.ring
-    const head = ok.length ? `폭 ${median(ok).toFixed(1)}px · ${ok.length}프레임 사용` : '폭 아직 없음'
-    const prog = done < total ? ` (계산 ${done}/${total})` : done !== ok.length ? ` (${done - ok.length}프레임 제외)` : ''
-    const now = cu ? (cu.w != null ? ` · 이 프레임 ${cu.w.toFixed(1)}px (소지 ${cu.kindP}·중지 ${cu.kindM})` : ' · 이 프레임은 제외') : ''
-    say(head + prog + now + '\n' + fingerLine() + msLine())
   }
   function drawDebug() {
     const cv2 = els.debug; if (!cv2) return

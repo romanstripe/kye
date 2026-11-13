@@ -9,7 +9,7 @@ export const FRAME_COUNT = 40
 const IW = 480
 const IH = 854
 const SS = 2 // 사진은 2배 크기(960×1708)로 저장해서 선명하게. 좌표는 0~1 비율이라 그대로 IW×IH 기준
-const MIN_FOUND = 8 // 손이 이만큼도 안 잡히면 실패로 보고 예시 손으로
+const MIN_FOUND = 8 // 손이 이만큼도 안 잡히면 실패로 봄 (다시 찍게 안내)
 
 export const WASM = { wasmLoaderPath: wasmLoader, wasmBinaryPath: wasmBinary }
 
@@ -90,7 +90,7 @@ function buildHand(frames: string[], found: (number[][] | null)[]): HandData {
   for (let i = pmin; i <= pmax; i++) LMS[i] = found[i] ?? LMS[i - 1]
   const P: (number[] | null)[] = new Array(found.length).fill(null)
   smooth(LMS.slice(pmin).map(ringPose)).forEach((p, j) => (P[pmin + j] = p.map((x) => Math.round(x * 1000) / 1000)))
-  return { N: found.length, P, LMS, frames, pmin, pmax, custom: true }
+  return { N: found.length, P, LMS, frames, pmin, pmax }
 }
 
 export async function analyzeVideo(file: File, onProgress: (done: number, total: number, stage?: string) => void): Promise<HandData> {

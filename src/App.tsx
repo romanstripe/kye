@@ -30,17 +30,15 @@ export default function App() {
 
   if (screen === 'landing')
     return (
-      <Landing
-        onFile={(f) => { setFile(f); setMenu(null); setScreen('main') }}
-        onDemo={() => { setFile(undefined); setMenu(null); setScreen('main') }}
-      />
+      <Landing onFile={(f) => { setFile(f); setMenu(null); setScreen('main') }} />
     )
 
   return (
     <div className="app">
       <div className="stage">
         <HandStage
-          initialFile={file}
+          initialFile={file!}
+          onBack={() => { setFile(undefined); setMenu(null); setScreen('landing') }}
           onActiveRing={setSel}
           onReady={(m) => {
             setMenu(m)

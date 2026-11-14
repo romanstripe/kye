@@ -22,8 +22,8 @@ export default function ToolsBar({
   onHo: (v: number) => void
   zoom: boolean
   onZoom: () => void
-  debugVisible: boolean   // ?debug=1 일 때만 버튼이 보임
-  debug: boolean
+  debugVisible: boolean   // ?debug=1 또는 2 일 때만 버튼이 보임
+  debug: number   // 0 꺼짐 / 1 그림 + 설명 글자 / 2 그림만
   onDebug: () => void
   busy: number | null   // 새 손을 분석 중이면 처리한 프레임 수, 아니면 null
   busyText: string
@@ -44,8 +44,8 @@ export default function ToolsBar({
       <button className="chip" hidden aria-pressed={zoom} onClick={onZoom}>
         가까이
       </button>
-      <button className="chip" hidden={!debugVisible} aria-pressed={debug} onClick={onDebug}>
-        디버그
+      <button className="chip" hidden={!debugVisible} aria-pressed={debug > 0} onClick={onDebug}>
+        디버그{debug > 0 ? ` ${debug}` : ''}
       </button>
       {busy === null ? (
         <>

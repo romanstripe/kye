@@ -696,7 +696,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
 
   // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
   // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
-  let DEBUG = false;
+  let DEBUG = false,
+    DEBUG_TEXT = false; // 디버그 단계: 꺼짐 / 1 = 그림 + 설명 글자 / 2 = 그림만
   let fixed: Fixed | null = null; // 손가락별 고정 폭 등 (hand/fixed.ts)
   let usedW: number | null = null,
     outerPx: number | null = null;
@@ -773,7 +774,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
       say("약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)");
       return;
     }
-    if (!DEBUG) {
+    if (!DEBUG || !DEBUG_TEXT) {
       say("");
       return;
     }
@@ -1038,9 +1039,10 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
       if (i >= 0) pickRing(i);
     },
     // 위쪽 버튼: 재생/멈춤, 가까이, 내 호수(안쪽 둘레 40+호수 mm 로 손가락 굵기를 다시 잡음)
-    setDebug(on: boolean) {
-      DEBUG = on;
-      if (on) {
+    setDebug(level: number) {
+      DEBUG = level > 0;
+      DEBUG_TEXT = level === 1;
+      if (DEBUG) {
         warm();
         wantMask();
       }

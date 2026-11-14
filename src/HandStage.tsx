@@ -35,8 +35,10 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack, 
   const shadow = useRef<HTMLCanvasElement>(null)
   const out = useRef<HTMLCanvasElement>(null)
   const dbg = useRef<HTMLCanvasElement>(null)
-  const wantDebug = new URLSearchParams(location.search).get('debug') === '1'   // ?debug=1 이면 디버그를 켠 채로 시작
-  const [debug, setDebug] = useState(wantDebug)
+  // ?debug=1 이면 디버그(그림 + 설명 글자)를 켠 채로 시작, ?debug=2 면 그림만. 버튼을 누르면 꺼짐 → 1 → 2 → 꺼짐
+  const debug0 = Number(new URLSearchParams(location.search).get('debug')) === 2 ? 2 : Number(new URLSearchParams(location.search).get('debug')) === 1 ? 1 : 0
+  const wantDebug = debug0 > 0
+  const [debug, setDebug] = useState(debug0)
   const [info, setInfo] = useState('')
   const stageRef = useRef<ReturnType<typeof createStage> | null>(null)
   const mine = useRef<HandData | null>(null)
@@ -73,7 +75,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack, 
         rings,
         hand,
       )
-      if (wantDebug) stage.setDebug(true)
+      if (wantDebug) stage.setDebug(debug0)
       ready.current({ rings, thumbs: stage.thumbs, pick: stage.pick, state: stage.state, set: stage.set, restore: stage.restore, initial: rings[0].id })
     }).catch((e) => !dead && setAnFail(e instanceof Error ? e.message : '분석에 실패했어요'))
     return () => {
@@ -175,7 +177,7 @@ export default function HandStage({ onReady, onActiveRing, initialFile, onBack, 
         onZoom={() => { stageRef.current?.setZoom(!zoom); setZoom(!zoom) }}
         debugVisible={wantDebug}
         debug={debug}
-        onDebug={() => { stageRef.current?.setDebug(!debug); setDebug(!debug) }}
+        onDebug={() => { const next = (debug + 1) % 3; stageRef.current?.setDebug(next); setDebug(next) }}
         busy={busy}
         busyText={stage}
         onCamera={() => setLive(true)}

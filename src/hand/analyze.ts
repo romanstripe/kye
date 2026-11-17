@@ -3,7 +3,7 @@
 import type { HandLandmarker } from '@mediapipe/tasks-vision'
 import wasmLoader from '@mediapipe/tasks-vision/vision_wasm_internal.js?url'
 import wasmBinary from '@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'
-import type { HandData } from '../three/stage.ts'
+import type { HandData } from '../three/types.ts'
 import { IW, IH } from '../constants.ts'
 
 export const FRAME_COUNT = 40

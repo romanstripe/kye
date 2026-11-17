@@ -3,75 +3,35 @@ import * as THREE from "three";
 import {
   S,
   H,
-  TAU,
   IW,
   IH,
-  LI,
   cv,
   renderer,
-  mainScene,
   cam,
   clip,
 } from "./shared.ts";
 import { NUDO_GEMS, makeHead } from "./sol.ts";
-import { makeRing, TW } from "./makeRing.ts";
+import { makeRing } from "./makeRing.ts";
 import { layoutStones } from "./layoutStones.ts";
-import { skinMask } from "../hand/skin.ts";
-import type { SkinMask } from "../hand/skin.ts";
+import { createSlots } from "./slots.ts";
+import { makeThumbs } from "./thumbs.ts";
+import { slideHead, twinkleObjs } from "./twinkle.ts";
 import { makeSlider, makeNudo } from "./heads.ts";
-import { STORE_ENV } from "./lights.ts";
-import { SEGS, occ, JI, occJ } from "./occluders.ts";
-import { measure, FINGERS, FINGER_NAME, JOINT } from "../hand/width.ts";
-import { computeFixed } from "../hand/fixed.ts";
+import { occ, occJ } from "./occluders.ts";
+import { JOINT } from "../hand/width.ts";
 import { ringPoseOf } from "../hand/pose.ts";
-import type { Fixed } from "../hand/fixed.ts";
-import { fingerLine as fingerLineOf, whyLine as whyLineOf, ratioLine } from "../hand/report.ts";
-import { drawHandDebug } from "./debugDraw.ts";
+import { createDebug } from "./debug.ts";
+import { createSkinCache } from "./skinCache.ts";
+import { createCompose, placeOcc, hideOcc, V, OCCK } from "./compose.ts";
 import { smoothLandmarks } from "../hand/smooth.ts";
 
-// public/rings.json 의 반지 한 개. pave.*.byWidth[폭] = layoutStones 에 넘기는 설정
-type PaveOpt = { label: string; byWidth: Record<string, any> };
-export type RingInfo = {
-  id: string;
-  name: string;
-  sub: string;
-  widths: number[];
-  widthLabels?: Record<string, string>;
-  defaultWidth: number;
-  wall: number;
-  metal: string | null;
-  diy: boolean;
-  rimColor: boolean;
-  gemPick: boolean;
-  gem: string | null;
-  pave: Partial<Record<"semi" | "alt" | "full" | "both", PaveOpt>>;
-};
-// frames: 프레임 이미지 주소, P/LMS: 프레임별 손 좌표, pmin~pmax: 왕복 재생할 구간
-export type HandData = {
-  N: number;
-  P: (number[] | null)[];
-  LMS: number[][][];
-  frames: string[];
-  pmin: number;
-  pmax: number;
-};
-type StageEls = {
-  img: HTMLImageElement;
-  shadow: HTMLCanvasElement;
-  out: HTMLCanvasElement;
-  debug?: HTMLCanvasElement;
-  onInfo?: (s: string) => void;
-  onMeasured?: () => void;
-  onHo?: (ho: number) => void;
-  onSlots?: (list: { id: string; active: boolean; finger: string }[]) => void;
-  onHints?: (list: { f: string; name: string; x: number; y: number }[]) => void;
-};
+import type { RingInfo, HandData, StageEls } from "./types.ts";
+
+const TWINKLE_MS = 66; // 반짝임·흔들림 갱신 간격(ms)
 
 export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
-  const { img, shadow: sh, out: outc } = els;
+  const { img } = els;
   clip.set(new THREE.Vector3(0, 0, 1), 1000); // 재질에 달린 잘라내기 평면은 멀리 둠 (손가락별 평면은 renderMain 에서)
-  const sx2 = sh.getContext("2d"),
-    ox = outc.getContext("2d");
   let N = 0,
     P = [],
     LMS = [],
@@ -80,37 +40,8 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     PMIN = 0,
     PMAX = 0,
     cur = 0;
-  let AUTO = true,
-    zoom = false,
-    zc = [240, 400]; // 자동 재생 / 가까이 보기 / 확대 중심
+  let AUTO = true; // 자동 재생
 
-  // 가까이: 반지 자리를 2.6배 확대해서 보여줌 (손 사진·반지 캔버스를 같이 키움)
-  const zw = img.parentElement,
-    box = zw.parentElement;
-  function applyZoom() {
-    const k = box.clientWidth / IW;
-    const Z = 2.6;
-    if (!zoom) {
-      zw.style.transform = "none";
-      return;
-    }
-    const tx = Math.min(
-        0,
-        Math.max(
-          box.clientWidth * (1 - Z),
-          box.clientWidth / 2 - zc[0] * k * Z,
-        ),
-      ),
-      ty = Math.min(
-        0,
-        Math.max(
-          box.clientHeight * (1 - Z),
-          box.clientHeight / 2 - zc[1] * k * Z,
-        ),
-      );
-    zw.style.transform = `translate(${tx}px,${ty}px) scale(${Z})`;
-  }
-  addEventListener("resize", applyZoom);
   let playDir = -1,
     lastPlay = 0,
     resumeAt = 0,
@@ -125,16 +56,12 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     frames = h.frames;
     PMIN = h.pmin;
     PMAX = h.pmax;
-    fixed = null;
+    mc.reset();
     cur = PMAX;
     playDir = -1;
     resumeAt = 0;
     dragX = null;
-    masks.clear();
-    meas.clear();
-    fingerMemo = null;
-    inflight.clear();
-    warmId++;
+    dbg.resetMemo();
     warm();
     report(); // 손 영상을 불러오면 재생 구간의 다섯 손가락 폭을 미리 재 둠 (끝나면 다시 재지 않음)
   }
@@ -169,111 +96,28 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
             S.GW,
           )
         : null;
-    if (!THUMBING) {
-      SLOTS[AI] ??= { objs: null, st: null };
-      SLOTS[AI].objs = { ring: S.ring, ring2: S.ring2, head: S.head };
-      SLOTS[AI].st = snap();
+    if (!ST.thumbing) {
+      SLOTS[ST.ai] ??= { objs: null, st: null };
+      SLOTS[ST.ai].objs = { ring: S.ring, ring2: S.ring2, head: S.head };
+      SLOTS[ST.ai].st = snap();
       notifySlots();
     }
   }
 
-  // ---- 끼운 반지(슬롯): 슬롯마다 3D 객체(objs)와 옵션 상태(st)를 가짐. S 와 S.ring/ring2/head 는 지금 고르는 슬롯(AI)의 것
-  const KEYS = [
-    "FINGER",
-    "GAPMM",
-    "CI",
-    "WMM",
-    "WALL",
-    "METAL",
-    "PAVE",
-    "GW",
-    "GPAVE",
-    "GMETAL",
-    "RMETAL",
-    "CUT",
-    "CT",
-    "GEM",
-    "PRONG",
-  ];
-  const SLOTS: {
-    objs: { ring: any; ring2: any; head: any } | null;
-    st: any;
-  }[] = [];
-  const MAX_PER_FINGER = 3;
-  let AI = 0,
-    THUMBING = false,
-    MASKS: any[] = [],
-    PICKF = false; // PICKF: 반지 낄 손가락을 고르는 중
-  const snap = () => Object.fromEntries(KEYS.map((k) => [k, S[k]]));
-  const slotList = () =>
-    SLOTS.map((sl, i) => ({
-      id: CAT[sl.st.CI].id,
-      active: i === AI,
-      finger: sl.st.FINGER as string,
-    }));
-  const notifySlots = () => els.onSlots?.(slotList());
-  function activate(i: number) {
-    // i 번째 슬롯을 지금 고르는 슬롯으로
-    AI = i;
-    const sl = SLOTS[i];
-    Object.assign(S, sl.st);
-    S.ring = sl.objs!.ring;
-    S.ring2 = sl.objs!.ring2;
-    S.head = sl.objs!.head;
-  }
-  // 손가락 고르기: 손가락마다 반지 자리에 ＋ 점을 띄움 (영상은 멈춤). 한 손가락에 최대 3개
-  function emitHints() {
-    const cnt = {};
-    SLOTS.forEach((sl) => {
-      cnt[sl.st.FINGER] = (cnt[sl.st.FINGER] || 0) + 1;
-    });
-    els.onHints?.(
-      PICKF
-        ? FINGERS.filter((f) => (cnt[f] || 0) < MAX_PER_FINGER)
-            .map((f) => ({ f, name: FINGER_NAME[f], pose: poseOf(f) }))
-            .filter((h) => h.pose)
-            .map((h) => ({ f: h.f, name: h.name, x: h.pose[0], y: h.pose[1] }))
-        : [],
-    );
-  }
-  function setPick(on: boolean) {
-    PICKF = on;
-    if (!on) resumeAt = performance.now() + 800;
-    emitHints();
-  }
-  function switchSlot(i: number) {
-    if (i === AI || !SLOTS[i]) return;
-    activate(i);
-    notifySlots();
-    show();
-  }
-  function addSlot(finger?: string) {
-    // 지금 반지와 같은 설정으로 하나 더 (가드링은 없음으로), 끼울 손가락은 finger
-    if (SLOTS.length >= 8) return;
-    const st = snap();
-    if (
-      SLOTS.filter((sl) => sl.st.FINGER === (finger ?? st.FINGER)).length >=
-      MAX_PER_FINGER
-    )
-      return; // 한 손가락에 최대 3개
-    S.ring = S.ring2 = S.head = null;
-    AI = SLOTS.length;
-    SLOTS.push({ objs: null, st: null });
-    Object.assign(S, st, { GW: 0, FINGER: finger ?? st.FINGER, GAPMM: 2.5 });
-    rebuild();
-    show();
-  }
-  function removeSlot(i: number) {
-    if (SLOTS.length < 2 || !SLOTS[i]) return;
-    const o = SLOTS[i].objs!;
-    dispose(o.ring);
-    dispose(o.ring2);
-    if (o.head) S.scene.remove(o.head);
-    SLOTS.splice(i, 1);
-    activate(Math.min(AI > i ? AI - 1 : AI, SLOTS.length - 1));
-    notifySlots();
-    show();
-  }
+  const slots = createSlots({
+    els,
+    CAT,
+    dispose,
+    rebuild,
+    show,
+    poseOf,
+    pauseFor: (ms) => {
+      resumeAt = performance.now() + ms;
+    },
+  });
+  const { list: SLOTS, state: ST, snap, slotList, notifySlots, activate, emitHints, setPick, switchSlot, addSlot, removeSlot } = slots;
+  let MASKS: any[] = [];
+
   // 파베 설정은 rings.json 에서 읽음. layoutStones 가 ys 배열 등을 건드리므로 매번 복사해서 넘김
   function paveCfgOf(st) {
     const c = CAT[st.CI];
@@ -334,35 +178,6 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     }
   }
 
-  // 반지 크기·자리는 보정 없이, 잰 손가락 폭으로 결정
-  let FEATHER = 0.8,
-    OCCK = 0.89;
-  const V = (L, i) => new THREE.Vector3(L[i][0], -L[i][1], -L[i][2]);
-  function placeOcc(L, rad) {
-    SEGS.forEach(([i, j, k], n) => {
-      const a = V(L, i),
-        b = V(L, j),
-        m = occ[n],
-        d = b.clone().sub(a),
-        len = d.length();
-      m.position.copy(a).add(b).multiplyScalar(0.5);
-      m.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        d.normalize(),
-      );
-      m.scale.set(rad * k, len, rad * k);
-      m.visible = true;
-    });
-    JI.forEach((i, n) => {
-      occJ[n].position.copy(V(L, i));
-      occJ[n].scale.setScalar(rad * 0.9);
-      occJ[n].visible = true;
-    });
-  }
-  function hideOcc() {
-    occ.forEach((m) => (m.visible = false));
-    occJ.forEach((m) => (m.visible = false));
-  }
   function dorsal(i) {
     const s = new THREE.Vector3();
     for (let k = -2; k <= 2; k++) {
@@ -417,7 +232,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산 (hand/pose.ts). 원래 점(LMS)은 폭 재기·디버그 그리기용
     const L = SM[cur];
     if (!L) return null;
-    return ringPoseOf(f, L, fixed?.[f], SLOTS.find((sl) => sl.st.FINGER === f)?.st.WMM ?? 0, S.FD, meas.get(frames[cur])?.[f]?.webT ?? null);
+    return ringPoseOf(f, L, mc.fixed?.[f], SLOTS.find((sl) => sl.st.FINGER === f)?.st.WMM ?? 0, S.FD, meas.get(frames[cur])?.[f]?.webT ?? null);
   }
   function hideAll() {
     SLOTS.forEach(({ objs: o }) => {
@@ -508,7 +323,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
             st.GPAVE ? { ys: [0], arc: 1, d: st.GW * 0.75 } : null,
           );
         const t = o.ring.userData.t;
-        if (si === AI) {
+        if (si === ST.ai) {
           outerPx = 2 * Rin * (1 + t);
           usedW = fr * 2;
           S.pxmmNow = pxmm;
@@ -536,7 +351,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
           head.quaternion.copy(qq);
           head.userData.q0 = qq.clone();
           head.userData.axis = axis.clone();
-          slideHead(head);
+          slideHead(head, slideT);
           head.position.copy(pos).add(axis.clone().multiplyScalar(offpx));
           head.scale.setScalar(pxmm);
           head.visible = true;
@@ -606,212 +421,51 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     });
   }
 
-  // 캔버스 크기는 달라졌을 때만 바꿈 (width 를 다시 쓰면 매번 메모리를 새로 잡고 지워서 느림)
-  const fit = (c: HTMLCanvasElement) => {
-    if (c.width !== cv.width || c.height !== cv.height) {
-      c.width = cv.width;
-      c.height = cv.height;
-    }
-  };
-  const maskCv = document.createElement("canvas");
-  function composite() {
-    fit(outc);
-    const k = cv.width / IW;
-    ox.clearRect(0, 0, outc.width, outc.height);
-    if (!MASKS.length) return;
-    ox.drawImage(cv, 0, 0);
-    fit(maskCv);
-    const mx = maskCv.getContext("2d");
-    mx.clearRect(0, 0, maskCv.width, maskCv.height);
-    mx.fillStyle = "#000"; // 반지마다 자를 영역을 모두 합쳐서 한 번에 자름
-    MASKS.forEach(({ cx, cy, ux, uy, hw, hl }) => {
-      const px = -uy,
-        py = ux;
-      mx.beginPath();
-      [
-        [hl, hw],
-        [hl, -hw],
-        [-hl, -hw],
-        [-hl, hw],
-      ].forEach(([a, b], i) => {
-        const X = (cx + ux * a + px * b) * k,
-          Y = (cy + uy * a + py * b) * k;
-        i ? mx.lineTo(X, Y) : mx.moveTo(X, Y);
-      });
-      mx.closePath();
-      mx.fill();
-    });
-    ox.globalCompositeOperation = "destination-in";
-    ox.filter = `blur(${FEATHER * k}px)`;
-    ox.drawImage(maskCv, 0, 0);
-    ox.filter = "none";
-    ox.globalCompositeOperation = "source-over";
-  }
-  const tmp = document.createElement("canvas");
-  function shadow() {
-    fit(sh);
-    const k = cv.width / IW;
-    sx2.clearRect(0, 0, sh.width, sh.height);
-    // 그림자 두 겹: 넓고 옅은 그림자(공중에 뜬 느낌 지움) + 반지가 피부에 닿는 곳의 짙고 좁은 접촉 그림자
-    fit(tmp);
-    const tx = tmp.getContext("2d");
-    [
-      [7, 2, 4, "rgba(70,40,32,0.32)"],
-      [1.6, 0.6, 1.4, "rgba(45,25,20,0.75)"],
-    ].forEach(([bl, dx, dy, col]) => {
-      tx.clearRect(0, 0, tmp.width, tmp.height);
-      tx.filter = `blur(${bl * k}px)`;
-      tx.drawImage(outc, dx * k, dy * k);
-      tx.filter = "none";
-      tx.globalCompositeOperation = "source-in";
-      tx.fillStyle = col;
-      tx.fillRect(0, 0, tmp.width, tmp.height);
-      tx.globalCompositeOperation = "source-over";
-      sx2.drawImage(tmp, 0, 0);
-    });
-  }
+  const { composite, shadow } = createCompose(els);
 
-  // 한 프레임 그리는 시간(ms): show 는 반지 놓기부터 그림자까지, 반짝임 갱신은 그리기부터 그림자까지. 최근 30번을 디버그에 보여줌
-  const drawMs: number[] = [];
-  const lap = (t0: number) => {
-    drawMs.push(performance.now() - t0);
-    if (drawMs.length > 30) drawMs.shift();
-  };
   function show(i = cur) {
     cur = Math.max(PMIN, Math.min(PMAX, Math.round(i)));
     img.src = frames[cur];
-    if (P[cur]) zc = [P[cur][0], P[cur][1]];
     const t0 = performance.now();
     place();
     renderMain();
-    composite();
+    composite(MASKS);
     shadow();
-    lap(t0);
-    applyZoom();
+    dbg.lap(t0);
     drawDebug();
     wantMask();
     report();
-    if (PICKF) emitHints();
+    if (ST.pickf) emitHints();
   }
 
-  // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
-  // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
-  let DEBUG = false,
-    DEBUG_TEXT = false; // 디버그 단계: 꺼짐 / 1 = 그림 + 설명 글자 / 2 = 그림만
-  let fixed: Fixed | null = null; // 손가락별 고정 폭 등 (hand/fixed.ts)
   let usedW: number | null = null,
     outerPx: number | null = null;
-  // 재생 구간을 다 재고 나면 손가락마다 폭 등을 하나로 고정 (계산은 hand/fixed.ts). 이번에 처음 고정됐으면 true
-  function refix() {
-    if (fixed) return false;
-    fixed = computeFixed(meas, frames, LMS, jlen, PMIN, PMAX);
-    return !!fixed;
-  }
-  const masks = new Map<string, SkinMask>(),
-    meas = new Map<string, any>(),
-    inflight = new Map<string, Promise<void>>();
-  let warmId = 0; // 손 영상이 바뀌면 올라가서, 이전 영상의 계산 결과를 버림
-  function ensureMask(i: number) {
-    // 프레임 i 의 마스크와 폭을 (아직 없으면) 계산
-    const url = frames[i];
-    if (!url || masks.has(url)) return Promise.resolve();
-    let p = inflight.get(url);
-    if (!p) {
-      const id = warmId;
-      p = skinMask(url)
-        .then((m) => {
-          if (id !== warmId) return;
-          masks.set(url, m);
-          const L = LMS[i];
-          if (L) meas.set(url, measure(L, m));
-          if (refix()) {
-            show(cur);
-            els.onMeasured?.();
-          } else {
-            report();
-            if (DEBUG && frames[cur] === url) drawDebug();
-          }
-        })
-        .catch(() => {})
-        .finally(() => inflight.delete(url));
-      inflight.set(url, p);
-    }
-    return p;
-  }
+  // 프레임별 피부 마스크·폭 측정 (three/skinCache.ts). 하나 끝날 때마다 화면 갱신
+  const mc = createSkinCache(
+    () => ({ frames, LMS, PMIN, PMAX }),
+    jlen,
+    (url, justFixed) => {
+      if (justFixed) {
+        show(cur);
+        els.onMeasured?.();
+      } else {
+        report();
+        if (dbg.state.on && frames[cur] === url) drawDebug();
+      }
+    },
+  );
+  const { masks, meas, ensureMask, warm } = mc;
   function wantMask() {
-    if (DEBUG) ensureMask(cur);
-  }
-  async function warm() {
-    const id = warmId;
-    for (let i = PMIN; i <= PMAX && id === warmId; i++) await ensureMask(i);
-  } // 재생 구간 전체를 미리 계산
-  function report() {
-    if (els.onInfo) reportMine(els.onInfo);
-  }
-  // 내 영상: 폭 재는 중 / 실패 / (디버그) 고정 폭과 반지 크기
-  // 손가락별: 재생 구간에서 양쪽 경계가 잡힌 프레임들의 폭 가운데값(잰 프레임 수)
-  let fingerMemo: { n: number; txt: string } | null = null; // 측정 개수가 같으면 다시 계산하지 않음 (끝나면 그대로)
-  function fingerLine() {
-    if (fingerMemo && fingerMemo.n === meas.size) return fingerMemo.txt;
-    const txt = fingerLineOf(meas, frames, PMIN, PMAX);
-    fingerMemo = { n: meas.size, txt };
-    return txt;
-  }
-  const msLine = () =>
-    drawMs.length
-      ? `\n그리기 ${(drawMs.reduce((a, b) => a + b, 0) / drawMs.length).toFixed(1)}ms (최근 ${drawMs.length}번 평균, 최대 ${Math.max(...drawMs).toFixed(1)}ms)`
-      : "";
-  function reportMine(say: (s: string) => void) {
-    const total = PMAX - PMIN + 1;
-    let done = 0;
-    for (let i = PMIN; i <= PMAX; i++) if (meas.get(frames[i])) done++;
-    if (!fixed) {
-      say(`약지 폭 재는 중 ${done}/${total}`);
-      return;
-    }
-    const fr = fixed.ring;
-    if (!fr.n) {
-      say("약지 폭을 못 쟀어요 (양쪽 경계가 잡힌 프레임이 없어요)");
-      return;
-    }
-    if (!DEBUG || !DEBUG_TEXT) {
-      say("");
-      return;
-    }
-    say(`잰 프레임 ${fr.n}/${total} · 고정 폭 ${fr.W.toFixed(1)}px · 이 프레임에 쓴 폭 ${usedW != null ? usedW.toFixed(1) : "-"}px · 반지 바깥 지름 ${outerPx != null ? outerPx.toFixed(1) : "-"}px
-${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])))}${whyLineOf(meas, frames, PMIN, PMAX)}${msLine()}`);
-  }
-  function drawDebug() {
-    const cv2 = els.debug;
-    if (!cv2) return;
-    const L = DEBUG && LMS[cur];
-    if (!L) {
-      cv2.getContext("2d").clearRect(0, 0, cv2.width, cv2.height);
-      return;
-    }
-    drawHandDebug(
-      cv2,
-      L,
-      masks.get(frames[cur]),
-      meas.get(frames[cur]),
-      Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])),
-    );
+    if (dbg.state.on) ensureMask(cur);
   }
 
-  // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐
-  let slideT = 0;
-  function slideHead(head) {
-    const u = head && head.userData;
-    if (!u || !u.slide || !u.q0) return;
-    head.quaternion
-      .copy(u.q0)
-      .premultiply(
-        new THREE.Quaternion().setFromAxisAngle(
-          u.axis,
-          u.amp * Math.sin(slideT * 0.9),
-        ),
-      );
-  }
+  // 디버그 그림·리포트·그리기 시간 (three/debug.ts). 값은 부를 때마다 지금 것을 읽음
+  const dbg = createDebug(
+    els,
+    () => ({ frames, LMS, cur, PMIN, PMAX, masks, meas, fixed: mc.fixed, usedW, outerPx }),
+    poseOf,
+  );
+  const { report, drawDebug } = dbg;
 
   function pickRing(i) {
     if (i === S.CI && S.ring) return;
@@ -827,95 +481,16 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
     show();
   }
 
-  // ---- 썸네일: 같은 렌더러로 작은 칸에 반지를 하나씩 그려 이미지로
-  function makeThumbs() {
-    const thumbs = {};
-    const tScene = new THREE.Scene();
-    tScene.environment = STORE_ENV;
-    tScene.add(new THREE.AmbientLight(0xffffff, 0.25 * LI));
-    const tk = new THREE.DirectionalLight(0xffffff, 1.3 * LI);
-    tk.position.set(-0.4, 1, 0.8);
-    tScene.add(tk);
-    const tCam = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
-    tCam.position.z = 50;
-    const SZ = 136,
-      pr = renderer.getPixelRatio(),
-      tc = document.createElement("canvas");
-    tc.width = tc.height = SZ;
-    const tx = tc.getContext("2d");
-    THUMBING = true;
-    const keep = {
-      CI: S.CI,
-      WMM: S.WMM,
-      WALL: S.WALL,
-      METAL: S.METAL,
-      PAVE: S.PAVE,
-      GW: S.GW,
-      GEM: S.GEM,
-    };
-    S.scene = tScene;
-    clip.set(new THREE.Vector3(0, 0, 1), 1000);
-    renderer.setScissorTest(true);
-    renderer.setViewport(0, 0, SZ / pr, SZ / pr);
-    renderer.setScissor(0, 0, SZ / pr, SZ / pr);
-    renderer.toneMappingExposure = 1.3;
-    const axis = new THREE.Vector3(0, 0.62, 0.78).normalize();
-    CAT.forEach((c, i) => {
-      S.CI = i;
-      S.WMM = c.defaultWidth;
-      S.WALL = c.wall;
-      S.METAL = c.metal;
-      S.PAVE = c.id === "IC" ? "semi" : "none";
-      S.GW = 0;
-      if (c.gem) S.GEM = c.gem;
-      rebuild();
-      const Rin = 0.58,
-        pxmm = Rin / (S.FD / 2),
-        pos = new THREE.Vector3(
-          0,
-          c.id === "SOL" || c.id === "ND" ? -0.25 : -0.05,
-          0,
-        ),
-        { qR, qH } = frameFor(axis, new THREE.Vector3(0, 0.78, -0.62), 0);
-      setRing(S.ring, qR, pos, Rin, S.WMM * pxmm, axis, 0, paveCfgOf(S));
-      const head = S.head;
-      if (head) {
-        head.quaternion.copy(qH);
-        head.position.copy(pos);
-        head.scale.setScalar(pxmm);
-        head.visible = true;
-      }
-      renderer.setClearColor(0x000000, 0);
-      renderer.clear();
-      renderer.render(tScene, tCam);
-      tx.clearRect(0, 0, SZ, SZ);
-      tx.drawImage(cv, 0, cv.height - SZ, SZ, SZ, 0, 0, SZ, SZ);
-      thumbs[c.id] = tc.toDataURL();
-    });
-    dispose(S.ring);
-    dispose(S.ring2);
-    S.ring = S.ring2 = null;
-    if (S.head) {
-      tScene.remove(S.head);
-      S.head = null;
-    }
-    S.scene = mainScene;
-    renderer.setScissorTest(false);
-    renderer.setViewport(0, 0, IW, IH);
-    Object.assign(S, keep);
-    THUMBING = false;
-    return thumbs;
-  }
-
   // 재생 프레임이 바뀔 때마다 파베 알 반짝임과 큰 알의 미세한 흔들림을 갱신 (조명 움직임·따로 다시 그리기는 없음)
   // 손 영상 자동 재생: 앞뒤로 계속 왕복 (초당 10장). 손으로 끌면 멈췄다가 1.5초 뒤 다시 돎
-  let lastTw = 0,
+  let slideT = 0, // 무빙원 알 위치 계산용 시간(초)
+    lastTw = 0,
     raf = 0;
   function twinkle(now) {
     raf = requestAnimationFrame(twinkle);
     if (
       AUTO &&
-      !PICKF &&
+      !ST.pickf &&
       !document.hidden &&
       dragX === null &&
       now > resumeAt &&
@@ -929,42 +504,15 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
       }
       show(n);
     }
-    if (document.hidden || now - lastTw < 66 || !MASKS.length) return;
+    if (document.hidden || now - lastTw < TWINKLE_MS || !MASKS.length) return;
     lastTw = now;
-    const t = now / 1000,
-      os = SLOTS.map((sl) => sl.objs).filter(Boolean);
-    os.flatMap((o) => [o.ring, o.ring2]).forEach((g) => {
-      if (!g) return;
-      const s = g.userData.stones;
-      if (!s.visible || !s.count) return;
-      for (let c = 0; c < s.count; c++) {
-        const ph = (Math.abs(Math.sin(c * 12.9898) * 43758.5453) % 1) * TAU,
-          base = 0.45 + 0.4 * (Math.abs(Math.sin(c * 7.13) * 9137.1) % 1);
-        const k =
-            base + 0.65 * Math.pow(Math.max(0, Math.sin(t * 1.3 + ph)), 12),
-          B = s.userData.base;
-        s.setColorAt(
-          c,
-          B
-            ? TW.setRGB(B[c * 3] * k, B[c * 3 + 1] * k, B[c * 3 + 2] * k)
-            : TW.setScalar(k),
-        );
-      }
-      s.instanceColor.needsUpdate = true;
-    });
+    const t = now / 1000;
+    twinkleObjs(SLOTS.map((sl) => sl.objs).filter(Boolean), t);
     slideT = t;
-    os.forEach(({ head }) => {
-      if (head && head.userData.slide) slideHead(head);
-      if (head && head.userData.gem && !head.userData.slide) {
-        const gm = head.userData.gem;
-        gm.rotation.y = 0.06 * Math.sin(t * 0.7);
-        gm.rotation.x = 0.04 * Math.sin(t * 1.1);
-      }
-    });
   }
 
   setHand(hand);
-  const thumbs = makeThumbs();
+  const thumbs = makeThumbs({ CAT, ST, rebuild, dispose, frameFor, setRing, paveCfgOf });
   rebuild();
   show();
   raf = requestAnimationFrame(twinkle);
@@ -988,7 +536,7 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
           PRONG,
           GAPMM,
         } = S,
-        stacked = SLOTS.findIndex((sl) => sl.st.FINGER === S.FINGER) < AI;
+        stacked = SLOTS.findIndex((sl) => sl.st.FINGER === S.FINGER) < ST.ai;
       return {
         CI,
         WMM,
@@ -1040,9 +588,9 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
     },
     // 위쪽 버튼: 재생/멈춤, 가까이, 내 호수(안쪽 둘레 40+호수 mm 로 손가락 굵기를 다시 잡음)
     setDebug(level: number) {
-      DEBUG = level > 0;
-      DEBUG_TEXT = level === 1;
-      if (DEBUG) {
+      dbg.state.on = level > 0;
+      dbg.state.text = level === 1;
+      if (dbg.state.on) {
         warm();
         wantMask();
       }
@@ -1053,18 +601,10 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
       AUTO = on;
       resumeAt = 0;
     },
-    setZoom(on: boolean) {
-      zoom = on;
-      renderer.setPixelRatio(
-        on ? 3 : Math.min(2, window.devicePixelRatio || 1),
-      );
-      renderer.setSize(IW, IH, false);
-      show();
-    },
     setHo(ho: number) {
       S.HO = ho;
       S.FD = (40 + ho) / Math.PI;
-      const keepAI = AI;
+      const keepAI = ST.ai;
       SLOTS.forEach((_, i) => {
         activate(i);
         rebuild();
@@ -1105,13 +645,13 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
       });
       SLOTS.length = 0;
       S.ring = S.ring2 = S.head = null;
-      PICKF = false;
+      ST.pickf = false;
       S.HO = ho;
       S.FD = (40 + ho) / Math.PI;
       rs.forEach(({ r, ci }) => {
         Object.assign(S, { CI: ci, WALL: CAT[ci].wall, ...(r.opt || {}), FINGER: r.finger, METAL: r.color, WMM: r.width, PAVE: r.pave, GW: r.guard });
         S.ring = S.ring2 = S.head = null;
-        AI = SLOTS.length;
+        ST.ai = SLOTS.length;
         SLOTS.push({ objs: null, st: null });
         rebuild();
       });
@@ -1128,7 +668,6 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
     removeSlot,
     setPick,
     stop() {
-      removeEventListener("resize", applyZoom);
       cancelAnimationFrame(raf);
       SLOTS.forEach(({ objs: o }) => {
         if (!o) return;

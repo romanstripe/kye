@@ -1,6 +1,6 @@
 // 반지 세트 저장 (서버/DB 없이 localStorage 만). 키 "kyeoboring.sets.v1"
 // 저장은 그 순간의 스냅샷을 복사해 새 항목으로 추가. 지금 세트를 고쳐도 저장본은 안 바뀜.
-import type { RingInfo } from './three/stage.ts'
+import type { RingInfo } from './three/types.ts'
 import { FINGERS, FINGER_NAME } from './hand/width.ts'
 import type { Finger } from './hand/width.ts'
 

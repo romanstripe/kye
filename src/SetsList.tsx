@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { RingInfo } from "./three/stage.ts";
+import type { RingInfo } from "./three/types.ts";
 import { describe } from "./sets.ts";
 import type { SavedSet } from "./sets.ts";
 

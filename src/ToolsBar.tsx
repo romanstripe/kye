@@ -4,11 +4,10 @@ import { FRAME_COUNT } from './hand/analyze.ts'
 import HoPicker from './HoPicker.tsx'
 import { CameraIcon, AlbumIcon } from './Landing.tsx'
 
-// 손 화면 위쪽 버튼 줄: 반지 세트 / 내 호수 / (가까이·디버그: 숨김) / 다시 찍기·앨범 / 재생·멈춤 + 안내 글자
+// 손 화면 위쪽 버튼 줄: 반지 세트 / 내 호수 / (디버그: 숨김) / 다시 찍기·앨범 / 재생·멈춤 + 안내 글자
 export default function ToolsBar({
   setBtn, setOpen, slotCount, onToggleSet,
   ho, onHo,
-  zoom, onZoom,
   debugVisible, debug, onDebug,
   busy, busyText, onCamera, onAlbumFile,
   playing, onPlay,
@@ -20,8 +19,6 @@ export default function ToolsBar({
   onToggleSet: () => void
   ho: number
   onHo: (v: number) => void
-  zoom: boolean
-  onZoom: () => void
   debugVisible: boolean   // ?debug=1 또는 2 일 때만 버튼이 보임
   debug: number   // 0 꺼짐 / 1 그림 + 설명 글자 / 2 그림만
   onDebug: () => void
@@ -41,9 +38,6 @@ export default function ToolsBar({
         {slotCount > 1 && <span className="cnt">{slotCount}</span>}
       </button>
       <HoPicker value={ho} onChange={onHo} />
-      <button className="chip" hidden aria-pressed={zoom} onClick={onZoom}>
-        가까이
-      </button>
       <button className="chip" hidden={!debugVisible} aria-pressed={debug > 0} onClick={onDebug}>
         디버그{debug > 0 ? ` ${debug}` : ''}
       </button>

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
-import type { RingInfo } from './three/stage.ts'
+import type { RingInfo } from './three/types.ts'
+import { MAX_SLOTS } from './three/slots.ts'
 import { FINGERS, FINGER_NAME } from './hand/width.ts'
 import type { Finger } from './hand/width.ts'
 
@@ -62,7 +63,7 @@ export default function WornPanel({
           ))}
         </div>
       )}
-      {slots.length < 8 && (
+      {slots.length < MAX_SLOTS && (
         <button type="button" className="addl" aria-label="반지 하나 더 끼기" aria-pressed={pick} onClick={onTogglePick}>
           ＋
         </button>

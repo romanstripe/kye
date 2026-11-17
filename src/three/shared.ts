@@ -1,8 +1,7 @@
-// @ts-nocheck  (원본 데모 를 모양·수치 그대로 옮긴 파일들은 타입 검사를 끔)
-// 원본 main13.js 맨 위의 three 설정과 여러 파일이 같이 쓰는 값들.
+// three 설정과 여러 파일이 같이 쓰는 값들.
 import * as THREE from 'three'
 
-// 데모는 three r128. r128은 색상 변환이 없고 조명 세기에 π가 곱해져 있었음 → 지금 버전에서 같은 화면이 나오게 맞춤.
+// 처음 만든 기준은 three r128. r128은 색상 변환이 없고 조명 세기에 π가 곱해져 있었음 → 지금 버전에서 같은 화면이 나오게 맞춤.
 THREE.ColorManagement.enabled = false
 export const LI = Math.PI   // 점광/방향광/주변광 세기에 곱함
 
@@ -10,7 +9,7 @@ import { IW, IH } from '../constants.ts'
 export { IW, IH }
 export const TAU = Math.PI * 2
 export const H = 0.62
-export const wrap = (a) => ((a % TAU) + TAU) % TAU
+export const wrap = (a: number) => ((a % TAU) + TAU) % TAU
 
 export const cv = document.createElement('canvas')
 export const renderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, preserveDrawingBuffer: true })
@@ -22,10 +21,10 @@ export const cam = new THREE.OrthographicCamera(0, IW, 0, -IH, -1000, 1000); cam
 export const pmg = new THREE.PMREMGenerator(renderer)
 export const clip = new THREE.Plane()
 
-export const METALS = { PG: 0xf2b9a2, YG: 0xf0c36e, WG: 0xeef0f3 }
-export const M = (c, met, rough) => new THREE.MeshStandardMaterial({ color: c, metalness: met, roughness: rough, clippingPlanes: [clip], side: THREE.DoubleSide })
+export const METALS: Record<string, number> = { PG: 0xf2b9a2, YG: 0xf0c36e, WG: 0xeef0f3 }
+export const M = (c: number, met: number, rough: number) => new THREE.MeshStandardMaterial({ color: c, metalness: met, roughness: rough, clippingPlanes: [clip], side: THREE.DoubleSide })
 
-// 원본의 전역 변수(let)들. 모듈 사이에서 바꿔 써야 해서 한 객체에 모음.
+// 전역 변수(let)들. 모듈 사이에서 바꿔 써야 해서 한 객체에 모음.
 export const S = {
   scene: mainScene,
   HO: 10, FD: (40 + 10) / Math.PI,   // 호수 → 안쪽 둘레(40+호수 mm) → 지름
@@ -33,5 +32,5 @@ export const S = {
   FINGER: 'ring',   // 이 반지를 끼운 손가락
   GAPMM: 2.5,   // 앞 반지와의 간격(mm), 같은 손가락에 쌓을 때
   CUT: 'round', CT: 1, GEM: 'dia', PRONG: 4,
-  CI: 0, ring: null, ring2: null, head: null, MASK: null, pxmmNow: 1,
+  CI: 0, ring: null as any, ring2: null as any, head: null as any, MASK: null as any, pxmmNow: 1,
 }

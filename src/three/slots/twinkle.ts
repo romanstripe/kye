@@ -1,10 +1,10 @@
-// @ts-nocheck  (파베 알 반짝임, 큰 알 흔들림, 무빙원 알 미끄러짐)
 import * as THREE from "three";
-import { TAU } from "./shared.ts";
-import { TW } from "./makeRing.ts";
+import { TAU } from "../shared.ts";
+import { TW } from "../ring/makeRing.ts";
+import type { Slot } from "./slots.ts";
 
 // ---- 무빙원 알: 손가락 축을 따라 돌며 좌우로 미끄러짐 (t: 초 단위 시간)
-export function slideHead(head, t) {
+export function slideHead(head: THREE.Object3D | null | undefined, t: number) {
   const u = head && head.userData;
   if (!u || !u.slide || !u.q0) return;
   head.quaternion
@@ -15,7 +15,7 @@ export function slideHead(head, t) {
 }
 
 // 슬롯들의 3D 객체(os)에 반짝임과 흔들림을 입힘
-export function twinkleObjs(os, t) {
+export function twinkleObjs(os: NonNullable<Slot["objs"]>[], t: number) {
   os.flatMap((o) => [o.ring, o.ring2]).forEach((g) => {
     if (!g) return;
     const s = g.userData.stones;

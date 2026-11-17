@@ -1,8 +1,7 @@
-// @ts-nocheck  (반지 목록 썸네일)
 import * as THREE from "three";
-import { S, IW, IH, LI, cv, renderer, mainScene, clip } from "./shared.ts";
-import { STORE_ENV } from "./lights.ts";
-import type { RingInfo } from "./types.ts";
+import { S, IW, IH, LI, cv, renderer, mainScene, clip } from "../shared.ts";
+import { STORE_ENV } from "../lights.ts";
+import type { RingInfo } from "../types.ts";
 
 type Deps = {
   CAT: RingInfo[];
@@ -19,7 +18,7 @@ const THUMB_SIZE = 136; // 썸네일 한 변(px)
 // ---- 썸네일: 같은 렌더러로 작은 칸에 반지를 하나씩 그려 이미지로
 export function makeThumbs({ CAT, ST, rebuild, dispose, frameFor, setRing, paveCfgOf }: Deps) {
 
-  const thumbs = {};
+  const thumbs: Record<string, string> = {};
   const tScene = new THREE.Scene();
   tScene.environment = STORE_ENV;
   tScene.add(new THREE.AmbientLight(0xffffff, 0.25 * LI));
@@ -32,7 +31,7 @@ export function makeThumbs({ CAT, ST, rebuild, dispose, frameFor, setRing, paveC
     pr = renderer.getPixelRatio(),
     tc = document.createElement("canvas");
   tc.width = tc.height = SZ;
-  const tx = tc.getContext("2d");
+  const tx = tc.getContext("2d")!;
   ST.thumbing = true;
   const keep = {
     CI: S.CI,
@@ -54,7 +53,7 @@ export function makeThumbs({ CAT, ST, rebuild, dispose, frameFor, setRing, paveC
     S.CI = i;
     S.WMM = c.defaultWidth;
     S.WALL = c.wall;
-    S.METAL = c.metal;
+    S.METAL = c.metal as string; // 금속이 없는(null) 반지도 그대로 넣음
     S.PAVE = c.id === "IC" ? "semi" : "none";
     S.GW = 0;
     if (c.gem) S.GEM = c.gem;
@@ -68,7 +67,7 @@ export function makeThumbs({ CAT, ST, rebuild, dispose, frameFor, setRing, paveC
       ),
       { qR, qH } = frameFor(axis, new THREE.Vector3(0, 0.78, -0.62), 0);
     setRing(S.ring, qR, pos, Rin, S.WMM * pxmm, axis, 0, paveCfgOf(S));
-    const head = S.head;
+    const head = S.head as THREE.Object3D | null;
     if (head) {
       head.quaternion.copy(qH);
       head.position.copy(pos);

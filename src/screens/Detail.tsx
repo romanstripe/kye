@@ -1,8 +1,8 @@
 import { useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Menu } from './HandStage.tsx'
-import type { RingInfo } from './three/types.ts'
-import { CUTS as CUTS_, GEMS as GEMS_, NUDO_GEMS, SIX, stoneSize } from './three/sol.ts'
+import type { Menu } from '../stage/HandStage.tsx'
+import type { RingInfo } from '../three/types.ts'
+import { CUTS as CUTS_, GEMS as GEMS_, NUDO_GEMS, SIX, stoneSize } from '../three/ring/sol.ts'
 
 const CUTS: Record<string, { n: string }> = CUTS_
 const GEMS: Record<string, { n: string }> = GEMS_

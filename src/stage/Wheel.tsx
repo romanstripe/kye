@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
-import type { RingInfo } from './three/types.ts'
+import type { RingInfo } from '../three/types.ts'
 
-// 반지 휠: 가운데로 오는 카드가 선택됨 (원본 데모 onWheel 과 같은 동작)
+// 반지 휠: 가운데로 오는 카드가 선택됨
 export default function Wheel({
   rings,
   thumbs,

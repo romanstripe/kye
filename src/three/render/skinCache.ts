@@ -1,9 +1,8 @@
-// @ts-nocheck  (프레임별 피부 마스크와 손가락 폭 측정 캐시)
-import { skinMask } from "../hand/skin.ts";
-import type { SkinMask } from "../hand/skin.ts";
-import { measure } from "../hand/width.ts";
-import { computeFixed } from "../hand/fixed.ts";
-import type { Fixed } from "../hand/fixed.ts";
+import { skinMask } from "../../hand/skin.ts";
+import type { SkinMask } from "../../hand/skin.ts";
+import { measure } from "../../hand/width.ts";
+import { computeFixed } from "../../hand/fixed.ts";
+import type { Fixed } from "../../hand/fixed.ts";
 
 // stage 의 현재 손 영상 값 (부를 때마다 지금 것을 읽음)
 type Ctx = { frames: string[]; LMS: number[][][]; PMIN: number; PMAX: number };

@@ -1,12 +1,12 @@
 import { useRef, useState } from 'react'
-import HandStage from './HandStage.tsx'
-import type { Menu } from './HandStage.tsx'
-import Wheel from './Wheel.tsx'
-import Detail from './Detail.tsx'
-import Landing from './Landing.tsx'
-import SetsList from './SetsList.tsx'
-import { loadSets, addSet, removeSet } from './sets.ts'
-import type { SavedSet } from './sets.ts'
+import HandStage from './stage/HandStage.tsx'
+import type { Menu } from './stage/HandStage.tsx'
+import Wheel from './stage/Wheel.tsx'
+import Detail from './screens/Detail.tsx'
+import Landing from './screens/Landing.tsx'
+import SetsList from './stage/SetsList.tsx'
+import { loadSets, addSet, removeSet } from './stage/sets.ts'
+import type { SavedSet } from './stage/sets.ts'
 
 export default function App() {
   // 처음부터 펼쳐진 채로 보임 (애니메이션으로 튀어나오지 않음). 접힌 채로 시작하려면 false

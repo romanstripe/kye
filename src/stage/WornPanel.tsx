@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
-import type { RingInfo } from './three/types.ts'
-import { MAX_SLOTS } from './three/slots.ts'
-import { FINGERS, FINGER_NAME } from './hand/width.ts'
-import type { Finger } from './hand/width.ts'
+import type { RingInfo } from '../three/types.ts'
+import { MAX_SLOTS } from '../three/slots/slots.ts'
+import { FINGERS, FINGER_NAME } from '../hand/width.ts'
+import type { Finger } from '../hand/width.ts'
 
 export type Slot = { id: string; active: boolean; finger: string }   // 끼운 반지 하나
 

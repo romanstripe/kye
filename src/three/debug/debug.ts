@@ -1,10 +1,10 @@
-// @ts-nocheck  (디버그 그림 · 측정 리포트 · 그리기 시간)
-import { FINGERS } from "../hand/width.ts";
-import { fingerLine as fingerLineOf, whyLine as whyLineOf, ratioLine } from "../hand/report.ts";
+import { FINGERS } from "../../hand/width.ts";
+import { fingerLine as fingerLineOf, whyLine as whyLineOf, ratioLine } from "../../hand/report.ts";
 import { drawHandDebug } from "./debugDraw.ts";
-import type { Fixed } from "../hand/fixed.ts";
-import type { SkinMask } from "../hand/skin.ts";
-import type { StageEls } from "./types.ts";
+import type { Fixed } from "../../hand/fixed.ts";
+import type { SkinMask } from "../../hand/skin.ts";
+import type { StageEls } from "../types.ts";
+import type { Pose } from "../../hand/pose.ts";
 
 // 디버그가 그때그때 읽어 가는 stage 의 현재 값
 type Ctx = {
@@ -20,7 +20,7 @@ type Ctx = {
   outerPx: number | null;
 };
 
-export function createDebug(els: StageEls, get: () => Ctx, poseOf: (f: string) => number[] | null) {
+export function createDebug(els: StageEls, get: () => Ctx, poseOf: (f: string) => Pose | null) {
   // 디버그 단계: on 꺼짐 / text=true 그림 + 설명 글자 / text=false 그림만
   // 디버그: MediaPipe 21점과 뼈대 선. 약지 13·14번 점과 13→14 선은 빨간색으로 크게
   // + 피부 마스크(반투명 빨강) + 약지 폭 재기(소지선 17→18 ~ 중지선 9→10 사이)
@@ -80,7 +80,7 @@ ${fingerLine()}${ratioLine(Object.fromEntries(FINGERS.map((f) => [f, poseOf(f)])
     const { LMS, cur, frames, masks, meas } = get();
     const L = state.on && LMS[cur];
     if (!L) {
-      cv2.getContext("2d").clearRect(0, 0, cv2.width, cv2.height);
+      cv2.getContext("2d")?.clearRect(0, 0, cv2.width, cv2.height);
       return;
     }
     drawHandDebug(

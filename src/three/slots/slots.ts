@@ -1,7 +1,7 @@
-// @ts-nocheck  (끼운 반지 슬롯 관리)
-import { S } from "./shared.ts";
-import { FINGERS, FINGER_NAME } from "../hand/width.ts";
-import type { RingInfo, StageEls } from "./types.ts";
+import { S } from "../shared.ts";
+import { FINGERS, FINGER_NAME } from "../../hand/width.ts";
+import type { RingInfo, StageEls } from "../types.ts";
+import type { Pose } from "../../hand/pose.ts";
 
 // ---- 끼운 반지(슬롯): 슬롯마다 3D 객체(objs)와 옵션 상태(st)를 가짐. S 와 S.ring/ring2/head 는 지금 고르는 슬롯(ai)의 것
 export const KEYS = [
@@ -35,7 +35,7 @@ type Deps = {
   dispose: (g: any) => void; // 반지 3D 객체를 장면에서 치움
   rebuild: () => void; // 지금 옵션대로 반지를 다시 만들어 현재 슬롯에 담음
   show: () => void;
-  poseOf: (f: string) => number[] | null;
+  poseOf: (f: string) => Pose | null;
   pauseFor: (ms: number) => void; // 자동 재생을 ms 동안 멈춤
 };
 
@@ -44,7 +44,7 @@ export function createSlots({ els, CAT, dispose, rebuild, show, poseOf, pauseFor
   // ai: 지금 고르는 슬롯 번호 / thumbing: 썸네일 만드는 중 / pickf: 반지 낄 손가락을 고르는 중
   const state = { ai: 0, thumbing: false, pickf: false };
 
-  const snap = () => Object.fromEntries(KEYS.map((k) => [k, S[k]]));
+  const snap = () => Object.fromEntries(KEYS.map((k) => [k, (S as Record<string, any>)[k]]));
   const slotList = () =>
     list.map((sl, i) => ({
       id: CAT[sl.st.CI].id,
@@ -63,16 +63,16 @@ export function createSlots({ els, CAT, dispose, rebuild, show, poseOf, pauseFor
   }
   // 손가락 고르기: 손가락마다 반지 자리에 ＋ 점을 띄움 (영상은 멈춤). 한 손가락에 최대 3개
   function emitHints() {
-    const cnt = {};
+    const cnt: Record<string, number> = {};
     list.forEach((sl) => {
       cnt[sl.st.FINGER] = (cnt[sl.st.FINGER] || 0) + 1;
     });
     els.onHints?.(
       state.pickf
-        ? FINGERS.filter((f) => (cnt[f] || 0) < MAX_PER_FINGER)
-            .map((f) => ({ f, name: FINGER_NAME[f], pose: poseOf(f) }))
-            .filter((h) => h.pose)
-            .map((h) => ({ f: h.f, name: h.name, x: h.pose[0], y: h.pose[1] }))
+        ? FINGERS.filter((f) => (cnt[f] || 0) < MAX_PER_FINGER).flatMap((f) => {
+            const pose = poseOf(f);
+            return pose ? [{ f, name: FINGER_NAME[f], x: pose[0], y: pose[1] }] : [];
+          })
         : [],
     );
   }

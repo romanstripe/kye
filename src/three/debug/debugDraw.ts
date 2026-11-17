@@ -1,12 +1,12 @@
-// @ts-nocheck
-import { IW, TAU } from './shared.ts'
-import { FINGERS } from '../hand/width.ts'
-import type { SkinMask } from '../hand/skin.ts'
+import { IW, TAU } from '../shared.ts'
+import { FINGERS } from '../../hand/width.ts'
+import type { SkinMask } from '../../hand/skin.ts'
+import type { Pose } from '../../hand/pose.ts'
 
 const FINGER_COLOR = { thumb: '#ff8a3d', index: '#4fc3f7', middle: '#b388ff', ring: '#ffd25a', pinky: '#ff6fae' }   // 손가락별 선 색
 const BONES = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]]
-export function drawHandDebug(cv2: HTMLCanvasElement, L: number[][], mk: SkinMask | undefined, r: any, poses?: Record<string, number[] | null>) {
-  const x = cv2.getContext('2d'), k = cv2.width / IW; x.clearRect(0, 0, cv2.width, cv2.height)
+export function drawHandDebug(cv2: HTMLCanvasElement, L: number[][], mk: SkinMask | undefined, r: any, poses?: Record<string, Pose | null>) {
+  const x = cv2.getContext('2d')!, k = cv2.width / IW; x.clearRect(0, 0, cv2.width, cv2.height)
   if (mk) x.drawImage(mk.overlay, 0, 0, cv2.width, cv2.height)
   x.lineCap = 'round'
   x.strokeStyle = '#39d98a'; x.lineWidth = 2 * k
@@ -25,9 +25,9 @@ export function drawHandDebug(cv2: HTMLCanvasElement, L: number[][], mk: SkinMas
     const p = poses[f]; if (!p) return
     const col = FINGER_COLOR[f], d = Math.hypot(p[3], p[4]) || 1, ux = p[3] / d, uy = p[4] / d, R = p[6]
     const X = p[0], Y = p[1], ex = X + ux * 46, ey = Y + uy * 46
-    const line = (x1, y1, x2, y2) => { x.beginPath(); x.moveTo(x1 * k, y1 * k); x.lineTo(x2 * k, y2 * k); x.stroke() }
-    const head = (s) => { const a = Math.atan2(uy, ux); line(ex, ey, ex - 11 * Math.cos(a - s), ey - 11 * Math.sin(a - s)); line(ex, ey, ex - 11 * Math.cos(a + s), ey - 11 * Math.sin(a + s)) }
-    ;[['#fff', 5.5], [col, 3]].forEach(([c, w]) => { x.strokeStyle = c; x.lineWidth = w * k; line(X - uy * R, Y + ux * R, X + uy * R, Y - ux * R); line(X, Y, ex, ey); head(0.5) })
+    const line = (x1: number, y1: number, x2: number, y2: number) => { x.beginPath(); x.moveTo(x1 * k, y1 * k); x.lineTo(x2 * k, y2 * k); x.stroke() }
+    const head = (s: number) => { const a = Math.atan2(uy, ux); line(ex, ey, ex - 11 * Math.cos(a - s), ey - 11 * Math.sin(a - s)); line(ex, ey, ex - 11 * Math.cos(a + s), ey - 11 * Math.sin(a + s)) }
+    ;([['#fff', 5.5], [col, 3]] as [string, number][]).forEach(([c, w]) => { x.strokeStyle = c; x.lineWidth = w * k; line(X - uy * R, Y + ux * R, X + uy * R, Y - ux * R); line(X, Y, ex, ey); head(0.5) })
   })
   L.forEach((p, i) => { const big = i === 13 || i === 14; x.beginPath(); x.arc(p[0] * k, p[1] * k, (big ? 7 : 3) * k, 0, TAU); x.fillStyle = big ? '#ff2d2d' : '#ffffff'; x.fill(); x.lineWidth = 1.2 * k; x.strokeStyle = big ? '#fff' : '#39d98a'; x.stroke() })
 }

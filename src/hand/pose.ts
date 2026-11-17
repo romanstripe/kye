@@ -11,7 +11,7 @@ import type { Fixed } from './fixed.ts'
 // 이 프레임에서 잰 갈림 비율(measuredT)이 고정값에서 이만큼(관절 길이 대비) 넘게 벗어나면 이상한 프레임으로 보고 고정값을 씀
 const TOL = 0.12
 
-export type Pose = (number | string)[]   // [cx,cy,cz, 축 x,y,z, 반지름, 쓴 갈림 비율(없으면 -1), 출처(측정/고정/이웃/기본)]
+export type Pose = [number, number, number, number, number, number, number, number, string]   // [cx,cy,cz, 축 x,y,z, 반지름, 쓴 갈림 비율(없으면 -1), 출처(측정/고정/이웃/기본)]
 export function ringPoseOf(f: string, L: number[][], fx: Fixed[string] | undefined, ringWmm: number, FD: number, measuredT: number | null = null): Pose | null {
   const [ia, ib] = JOINT[f as Finger], a = L[ia], b = L[ib]
   const len = Math.hypot(b[0] - a[0], b[1] - a[1])

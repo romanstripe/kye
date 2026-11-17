@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FRAME_COUNT, newFrameCanvas, drawCover, warmup } from './hand/analyze.ts'
+import { FRAME_COUNT, newFrameCanvas, drawCover, warmup } from '../hand/analyze.ts'
 
 const SECONDS = 3
 const IS_TOSS = new URLSearchParams(location.search).has('toss')   // ?toss 일 때만: 웹뷰가 카메라를 인라인으로 못 띄우면 토스 SDK 사진 촬영으로 대체

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { IW, IH } from './constants.ts'
-import type { RingInfo } from './three/types.ts'
+import { IW, IH } from '../constants.ts'
+import type { RingInfo } from '../three/types.ts'
 import type { SavedSet, Snapshot } from './sets.ts'
 import { useSaveSet } from './useSaveSet.ts'
 import { useHandStage } from './useHandStage.ts'
 import ToolsBar from './ToolsBar.tsx'
 import FingerHints from './FingerHints.tsx'
-import LiveCapture from './LiveCapture.tsx'
-import Analyzing from './Analyzing.tsx'
+import LiveCapture from '../screens/LiveCapture.tsx'
+import Analyzing from '../screens/Analyzing.tsx'
 import WornPanel from './WornPanel.tsx'
 
 export type Menu = {

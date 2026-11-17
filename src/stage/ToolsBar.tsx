@@ -1,8 +1,8 @@
 import { useRef } from 'react'
 import type { RefObject } from 'react'
-import { FRAME_COUNT } from './hand/analyze.ts'
+import { FRAME_COUNT } from '../hand/analyze.ts'
 import HoPicker from './HoPicker.tsx'
-import { CameraIcon, AlbumIcon } from './Landing.tsx'
+import { CameraIcon, AlbumIcon } from '../screens/Landing.tsx'
 
 // 손 화면 위쪽 버튼 줄: 반지 세트 / 내 호수 / (디버그: 숨김) / 다시 찍기·앨범 / 재생·멈춤 + 안내 글자
 export default function ToolsBar({

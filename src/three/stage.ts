@@ -1,28 +1,25 @@
-// @ts-nocheck  (조명·배치·합성·반짝임)
 import * as THREE from "three";
 import {
   S,
   H,
-  IW,
-  IH,
-  cv,
   renderer,
   cam,
   clip,
 } from "./shared.ts";
-import { NUDO_GEMS, makeHead } from "./sol.ts";
-import { makeRing } from "./makeRing.ts";
-import { layoutStones } from "./layoutStones.ts";
-import { createSlots } from "./slots.ts";
-import { makeThumbs } from "./thumbs.ts";
-import { slideHead, twinkleObjs } from "./twinkle.ts";
-import { makeSlider, makeNudo } from "./heads.ts";
-import { occ, occJ } from "./occluders.ts";
+import { NUDO_GEMS, makeHead } from "./ring/sol.ts";
+import { makeRing } from "./ring/makeRing.ts";
+import { layoutStones } from "./ring/layoutStones.ts";
+import { createSlots } from "./slots/slots.ts";
+import { makeThumbs } from "./slots/thumbs.ts";
+import { slideHead, twinkleObjs } from "./slots/twinkle.ts";
+import { makeSlider, makeNudo } from "./ring/heads.ts";
+import { occ, occJ } from "./render/occluders.ts";
 import { JOINT } from "../hand/width.ts";
+import type { Finger } from "../hand/width.ts";
 import { ringPoseOf } from "../hand/pose.ts";
-import { createDebug } from "./debug.ts";
-import { createSkinCache } from "./skinCache.ts";
-import { createCompose, placeOcc, hideOcc, V, OCCK } from "./compose.ts";
+import { createDebug } from "./debug/debug.ts";
+import { createSkinCache } from "./render/skinCache.ts";
+import { createCompose, placeOcc, hideOcc, V, OCCK } from "./render/compose.ts";
 import { smoothLandmarks } from "../hand/smooth.ts";
 
 import type { RingInfo, HandData, StageEls } from "./types.ts";
@@ -33,10 +30,9 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   const { img } = els;
   clip.set(new THREE.Vector3(0, 0, 1), 1000); // 재질에 달린 잘라내기 평면은 멀리 둠 (손가락별 평면은 renderMain 에서)
   let N = 0,
-    P = [],
-    LMS = [],
-    SM = [],
-    frames = [],
+    LMS: number[][][] = [],
+    SM: (number[][] | null)[] = [],
+    frames: string[] = [],
     PMIN = 0,
     PMAX = 0,
     cur = 0;
@@ -45,12 +41,11 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let playDir = -1,
     lastPlay = 0,
     resumeAt = 0,
-    dragX = null,
+    dragX: number | null = null,
     dragY = 0,
     drag0 = 0;
-  function setHand(h) {
+  function setHand(h: HandData) {
     N = h.N;
-    P = h.P;
     LMS = h.LMS;
     SM = smoothLandmarks(LMS);
     frames = h.frames;
@@ -70,7 +65,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     const c = CAT[S.CI];
     return c.diy ? S.WALL : c.wall;
   }
-  function dispose(g) {
+  function dispose(g: any) {
     if (!g) return;
     S.scene.remove(g);
     S.scene.remove(g.userData.stones);
@@ -119,15 +114,15 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let MASKS: any[] = [];
 
   // 파베 설정은 rings.json 에서 읽음. layoutStones 가 ys 배열 등을 건드리므로 매번 복사해서 넘김
-  function paveCfgOf(st) {
+  function paveCfgOf(st: any) {
     const c = CAT[st.CI];
     const v =
-      st.PAVE !== "none" && c.pave?.[st.PAVE]?.byWidth?.[String(st.WMM)];
+      st.PAVE !== "none" && (c.pave as Record<string, any> | undefined)?.[st.PAVE]?.byWidth?.[String(st.WMM)];
     return v ? structuredClone(v) : null;
   }
 
   // 반지 놓기: 로컬 y = 손가락 축, 로컬 +z = 손등 쪽
-  function setRing(g, q, pos, Rin, bandW, axis, off, cfg, sx = 1) {
+  function setRing(g: any, q: any, pos: any, Rin: number, bandW: number, axis: any, off: number, cfg: any, sx = 1) {
     // sx: 화면에서 손가락 옆 방향으로만 조임 (반지 모양은 그대로 둥글게)
     g.visible = true;
     g.quaternion.copy(q);
@@ -178,7 +173,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     }
   }
 
-  function dorsal(i) {
+  function dorsal(i: number) {
     const s = new THREE.Vector3();
     for (let k = -2; k <= 2; k++) {
       const L = LMS[Math.max(0, Math.min(N - 1, i + k))];
@@ -194,7 +189,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (ref.z < 0) s.negate();
     return s.normalize();
   }
-  function frameFor(axis, nrm, bl = 0.4) {
+  function frameFor(axis: any, nrm: any, bl = 0.4) {
     // 손등 방향(축에 수직) 구하고 회전 만들기
     const Y = nrm.clone().sub(axis.clone().multiplyScalar(nrm.dot(axis)));
     const camv = new THREE.Vector3(0, 0, 1).sub(
@@ -222,13 +217,13 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     return { qR, qH };
   }
   // 손가락별 관절 길이(px): 프레임 i 의 5프레임 평균 점에서 시작 관절→다음 관절의 화면 거리
-  const jlen = (f, i) => {
+  const jlen = (f: string, i: number) => {
     const L = SM[i];
     if (!L) return 0;
-    const [a, b] = JOINT[f];
+    const [a, b] = JOINT[f as Finger];
     return Math.hypot(L[b][0] - L[a][0], L[b][1] - L[a][1]);
   };
-  function poseOf(f) {
+  function poseOf(f: string) {
     // 반지 자리·방향·크기는 모두 5프레임 평균 낸 점(SM)에서 계산 (hand/pose.ts). 원래 점(LMS)은 폭 재기·디버그 그리기용
     const L = SM[cur];
     if (!L) return null;
@@ -263,7 +258,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (!poses[refF]) poses[refF] = poseOf(refF);
     const FD = S.FD,
       qd = dorsal(cur);
-    let ref = null;
+    let ref = null as { frK: number; cx: number; cy: number } | null;
     used.forEach((f) => {
       const pf = poses[f];
       if (!pf) return;
@@ -366,7 +361,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
       hideOcc();
       return;
     }
-    placeOcc(SM[cur], ref.frK * OCCK);
+    placeOcc(SM[cur]!, ref.frK * OCCK); // ref 가 있으면 이 프레임의 평균 점도 있음
   }
 
   // 그리기: 손가락마다 따로 그림 (손가락마다 잘라내기 평면이 달라서). 가림 원통은 깊이만 먼저 한 번 그리고, 반지는 손가락별로
@@ -467,13 +462,13 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   );
   const { report, drawDebug } = dbg;
 
-  function pickRing(i) {
+  function pickRing(i: number) {
     if (i === S.CI && S.ring) return;
     S.CI = i;
     const c = CAT[i];
     S.WMM = c.defaultWidth;
     S.WALL = c.wall;
-    S.METAL = c.metal;
+    S.METAL = c.metal as string; // 금속이 없는(null) 반지도 그대로 넣음
     S.PAVE = "none";
     if (c.gem) S.GEM = c.gem;
     else if (c.id === "SOL" && NUDO_GEMS.includes(S.GEM)) S.GEM = "dia";
@@ -486,7 +481,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
   let slideT = 0, // 무빙원 알 위치 계산용 시간(초)
     lastTw = 0,
     raf = 0;
-  function twinkle(now) {
+  function twinkle(now: number) {
     raf = requestAnimationFrame(twinkle);
     if (
       AUTO &&
@@ -507,7 +502,7 @@ export function createStage(els: StageEls, CAT: RingInfo[], hand: HandData) {
     if (document.hidden || now - lastTw < TWINKLE_MS || !MASKS.length) return;
     lastTw = now;
     const t = now / 1000;
-    twinkleObjs(SLOTS.map((sl) => sl.objs).filter(Boolean), t);
+    twinkleObjs(SLOTS.flatMap((sl) => (sl.objs ? [sl.objs] : [])), t);
     slideT = t;
   }
 

@@ -1,6 +1,5 @@
-// @ts-nocheck
 import * as THREE from 'three'
-import { mainScene } from './shared.ts'
+import { mainScene } from '../shared.ts'
 
 // 안 보이는 3D 손 견본(깊이만): 손가락 뒤로 가는 반지 부분을 가림
 const occMat = new THREE.MeshBasicMaterial({ colorWrite: false })

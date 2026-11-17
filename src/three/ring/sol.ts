@@ -1,13 +1,12 @@
-// @ts-nocheck  (원본 데모 를 모양·수치 그대로 옮김)
 // ---- 오리지널 솔리테어: 컷 × 캐럿 × 알 종류. 크기는 실제 mm (1캐럿 다이아 기준 치수 × 캐럿^(1/3) × 밀도 보정)
 import * as THREE from 'three'
-import { S, M, METALS, clip, pmg } from './shared.ts'
+import { S, M, METALS, clip, pmg } from '../shared.ts'
 
-export const CUTS={round:{n:'라운드',W:6.5,L:6.5},oval:{n:'오벌',W:5.7,L:7.7},princess:{n:'프린세스',W:5.5,L:5.5},cushion:{n:'쿠션',W:5.6,L:6.0},
+export const CUTS:Record<string,{n:string;W:number;L:number}>={round:{n:'라운드',W:6.5,L:6.5},oval:{n:'오벌',W:5.7,L:7.7},princess:{n:'프린세스',W:5.5,L:5.5},cushion:{n:'쿠션',W:5.6,L:6.0},
  emerald:{n:'에메랄드컷',W:5.0,L:7.0},pear:{n:'페어',W:5.5,L:8.5},marquise:{n:'마퀴즈',W:5.0,L:10.0}};
-export const GEMS={dia:{n:'다이아',d:3.52,c:0xffffff,e:3.2},lab:{n:'랩다이아',d:3.52,c:0xffffff,e:3.2},sap:{n:'사파이어',d:4.0,c:0x1d3c9e,e:2.2},
+export const GEMS:Record<string,{n:string;d:number;c:number;e:number}>={dia:{n:'다이아',d:3.52,c:0xffffff,e:3.2},lab:{n:'랩다이아',d:3.52,c:0xffffff,e:3.2},sap:{n:'사파이어',d:4.0,c:0x1d3c9e,e:2.2},
  ruby:{n:'루비',d:4.0,c:0xa3122d,e:2.2},emer:{n:'에메랄드',d:2.72,c:0x0f7a45,e:2.0},gar:{n:'가넷',d:4.0,c:0x5c0b14,e:2.0},opal:{n:'오팔',d:2.1,c:0xffffff,e:1.2}};
-// 누디 전용 알 (원본 main13.js 에서 GEMS 에 덧붙이던 것)
+// 젤리 전용 알 (GEMS 에 덧붙임)
 export const NUDO_GEMS=['topaz','amet','pras','citr','rose','sap','gar'];
 Object.assign(GEMS,{topaz:{n:'블루토파즈',d:3.53,c:0x5fb6e6,e:2.4},amet:{n:'자수정',d:2.65,c:0x8a4fb5,e:2.4},pras:{n:'프라시올라이트',d:2.65,c:0xa9cf8a,e:2.4},
   citr:{n:'시트린',d:2.65,c:0xe8a33a,e:2.4},rose:{n:'로즈쿼츠',d:2.65,c:0xf0b4c2,e:2.2}});
@@ -17,26 +16,27 @@ export const gemEnv=(()=>{const es=new THREE.Scene(); es.add(new THREE.Mesh(new 
   for(let i=0;i<70;i++){const u=rnd()*2-1,a=rnd()*Math.PI*2,r=Math.sqrt(1-u*u),p=new THREE.Mesh(new THREE.PlaneGeometry(4+rnd()*7,4+rnd()*7),new THREE.MeshBasicMaterial({color:rnd()<0.85?0xffffff:[0xffd0a0,0xa0d0ff,0xffa0e0][i%3],side:THREE.DoubleSide}));
     p.position.set(r*Math.cos(a)*40,u*40,r*Math.sin(a)*40); p.lookAt(0,0,0); es.add(p);}
   return pmg.fromScene(es,0).texture;})();
-function polyRay(poly,th){const dx=Math.cos(th),dz=Math.sin(th);let best=1e9;
+function polyRay(poly:number[][],th:number){const dx=Math.cos(th),dz=Math.sin(th);let best=1e9;
   for(let i=0;i<poly.length;i++){const [ax,az]=poly[i],[bx,bz]=poly[(i+1)%poly.length],ex=bx-ax,ez=bz-az,den=dx*ez-dz*ex; if(Math.abs(den)<1e-9)continue;
     const tt=(ax*ez-az*ex)/den, u=(ax*dz-az*dx)/den; if(tt>0&&u>=0&&u<=1)best=Math.min(best,tt);} return [dx*best,dz*best];}
 const SQ=[[1,1],[-1,1],[-1,-1],[1,-1]], OCT=[[1,0.72],[0.72,1],[-0.72,1],[-1,0.72],[-1,-0.72],[-0.72,-1],[0.72,-1],[1,-0.72]];
-function outline(cut,t){const c=Math.cos(t),s=Math.sin(t);   // 단위 크기 거들 윤곽 [x(폭), z(길이)]
+function outline(cut:string,t:number):number[]{const c=Math.cos(t),s=Math.sin(t);   // 단위 크기 거들 윤곽 [x(폭), z(길이)]
   if(cut==='round'||cut==='oval')return [c,s];
   if(cut==='cushion'){const p=3;return [Math.sign(c)*Math.pow(Math.abs(c),2/p),Math.sign(s)*Math.pow(Math.abs(s),2/p)];}
   if(cut==='princess')return polyRay(SQ,t);
   if(cut==='emerald')return polyRay(OCT,t);
   if(cut==='pear'){const z=Math.cos(t), x=Math.sin(t)*Math.abs(Math.sin(t/2))/0.77; return [x,z];}
-  if(cut==='marquise')return [Math.sin(t)*Math.abs(Math.sin(t)),Math.cos(t)];}
-export function gemGeo(cut,W,L,cab){   // mm 단위, 거들이 y=0, 테이블 +y
-  const K=cut==='princess'||cut==='emerald'?32:24, P=[];
-  const ring=(f,y,rot)=>{const a=[];for(let i=0;i<K;i++){const t=(i+rot)/K*Math.PI*2,[x,z]=outline(cut,t);a.push([x*W/2*f,y,z*L/2*f]);}return a;};
-  const tri=(a,b,c)=>P.push(...a,...b,...c);
-  const strip=(A,B)=>{for(let i=0;i<K;i++){const j=(i+1)%K;tri(A[i],B[i],A[j]);tri(A[j],B[i],B[j]);}};
-  const fan=(A,c,up)=>{for(let i=0;i<K;i++){const j=(i+1)%K; up?tri(A[i],c,A[j]):tri(A[i],A[j],c);}};
+  if(cut==='marquise')return [Math.sin(t)*Math.abs(Math.sin(t)),Math.cos(t)];
+  return [c,s];}
+export function gemGeo(cut:string,W:number,L:number,cab:boolean){   // mm 단위, 거들이 y=0, 테이블 +y
+  const K=cut==='princess'||cut==='emerald'?32:24, P:number[]=[];
+  const ring=(f:number,y:number,rot:number)=>{const a:number[][]=[];for(let i=0;i<K;i++){const t=(i+rot)/K*Math.PI*2,[x,z]=outline(cut,t);a.push([x*W/2*f,y,z*L/2*f]);}return a;};
+  const tri=(a:number[],b:number[],c:number[])=>P.push(...a,...b,...c);
+  const strip=(A:number[][],B:number[][])=>{for(let i=0;i<K;i++){const j=(i+1)%K;tri(A[i],B[i],A[j]);tri(A[j],B[i],B[j]);}};
+  const fan=(A:number[][],c:number[],up:boolean)=>{for(let i=0;i<K;i++){const j=(i+1)%K; up?tri(A[i],c,A[j]):tri(A[i],A[j],c);}};
   const m=Math.min(W,L);
   if(cab){  // 오팔: 매끈한 돔(카보숑)
-    let prev=ring(1,0,0); const rings=[prev];
+    let prev=ring(1,0,0);
     for(let k=1;k<=10;k++){const a=k/10*Math.PI/2; const r=ring(Math.cos(a),Math.sin(a)*m*0.38,0); strip(prev,r); prev=r;}
     fan(prev,[0,m*0.38,0],true); fan(ring(1,0,0),[0,-0.3,0],false);
   } else {
@@ -66,8 +66,8 @@ export function gemGeo(cut,W,L,cab){   // mm 단위, 거들이 y=0, 테이블 +y
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));}
   return g;}
 export function stoneSize(){const C=CUTS[S.CUT],G=GEMS[S.GEM],f=Math.cbrt(S.CT)*Math.cbrt(3.52/G.d);return {W:C.W*f,L:C.L*f};}
-export const SIX={round:[0,1/3,2/3,1,4/3,5/3],oval:[0.5,0.82,1.18,1.5,1.82,0.18],cushion:[0,1/3,2/3,1,4/3,5/3]};  // 6발: 둥근 컷만
-export function makeHead(wall,metal){
+export const SIX:Record<string,number[]>={round:[0,1/3,2/3,1,4/3,5/3],oval:[0.5,0.82,1.18,1.5,1.82,0.18],cushion:[0,1/3,2/3,1,4/3,5/3]};  // 6발: 둥근 컷만
+export function makeHead(wall:number,metal:string){
   const {CUT,CT,GEM,PRONG,FD}=S;
   const {W,L}=stoneSize(), m=Math.min(W,L), cab=GEM==='opal', G=GEMS[GEM], hg=new THREE.Group();
   const Rout=FD/2+wall, pav=cab?0.3:0.43*m, yG=Rout+pav+0.7;   // 거들 높이 = 밴드 바깥면 + 파빌리온 + 받침
@@ -75,7 +75,7 @@ export function makeHead(wall,metal){
                 :new THREE.MeshStandardMaterial({color:G.c,vertexColors:true,metalness:G.c===0xffffff?0.85:0.75,roughness:0.0,flatShading:true,envMap:gemEnv,envMapIntensity:G.c===0xffffff?3.0:2.4,clippingPlanes:[clip]});
   const gem=new THREE.Mesh(gemGeo(CUT,W,L,cab),gmat); gem.position.y=yG; hg.add(gem);
   const pm=M(METALS[metal||'WG'],1,0.12), pr=Math.max(0.33,Math.min(0.6,0.42*Math.cbrt(CT)))*(PRONG===6&&SIX[CUT]?0.85:1);
-  const PT={round:[0.25,0.75,1.25,1.75],oval:[0.25,0.75,1.25,1.75],princess:[0.25,0.75,1.25,1.75],cushion:[0.25,0.75,1.25,1.75],emerald:[0.25,0.75,1.25,1.75],pear:[0,0.72,1.28],marquise:[0,0.5,1,1.5]}[CUT].slice(); if(PRONG===6&&SIX[CUT]) PT.splice(0,PT.length,...SIX[CUT]);
+  const PT=({round:[0.25,0.75,1.25,1.75],oval:[0.25,0.75,1.25,1.75],princess:[0.25,0.75,1.25,1.75],cushion:[0.25,0.75,1.25,1.75],emerald:[0.25,0.75,1.25,1.75],pear:[0,0.72,1.28],marquise:[0,0.5,1,1.5]} as Record<string,number[]>)[CUT].slice(); if(PRONG===6&&SIX[CUT]) PT.splice(0,PT.length,...SIX[CUT]);
   PT.forEach(a=>{const [x,z]=outline(CUT,a*Math.PI); const top=new THREE.Vector3(x*W/2*1.02,yG+(cab?m*0.12:0.05*m),z*L/2*1.02), bot=new THREE.Vector3(x*W/2*0.3,Rout-0.2,z*L/2*0.3);
     const d=top.clone().sub(bot), c=new THREE.Mesh(new THREE.CylinderGeometry(pr,pr*0.85,d.length(),12),pm);
     c.position.copy(top).add(bot).multiplyScalar(0.5); c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()); hg.add(c);

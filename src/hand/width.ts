@@ -1,7 +1,8 @@
-// @ts-nocheck  (약지 폭 재기: 순수 계산, 화면·three 와 무관)
 import type { SkinMask } from './skin.ts'
 
 import { IW, IH } from '../constants.ts'
+
+type Lm = number[][]   // 손 좌표 21점 [x, y, z]
 
 export const median = (a: number[]) => { const s = [...a].sort((p, q) => p - q), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
 // 손가락 폭 재기: 손가락 가운데에서 손가락에 수직으로 걸어가며 양쪽 경계를 찾음.
@@ -22,27 +23,27 @@ const NEIGH: Record<Finger, { pos: Finger; neg: Finger | null; k: number }> = {
 }
 
 // 한 줄 재기: 시작 관절→다음 관절 위의 t(0~1) 지점에서 수직으로 폭을 잼 (t=0.5 는 관절 두 점의 가운데)
-function measureAt(L, m: SkinMask, f: Finger, t: number) {
+function measureAt(L: Lm, m: SkinMask, f: Finger, t: number) {
   const [ia, ib] = JOINT[f], a = L[ia], b = L[ib], c = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
   const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]
   const { pos, neg, k } = NEIGH[f]
   let n = [-u[1], u[0]]
   const R = L[JOINT[pos][0]]
   if ((R[0] - c[0]) * n[0] + (R[1] - c[1]) * n[1] < 0) n = [-n[0], -n[1]]   // +n = pos 이웃 쪽
-  const hit = (P, Q) => { const d = [Q[0] - P[0], Q[1] - P[1]], den = n[0] * d[1] - n[1] * d[0]; return Math.abs(den) < 1e-6 ? null : ((P[0] - c[0]) * d[1] - (P[1] - c[1]) * d[0]) / den }
+  const hit = (P: number[], Q: number[]) => { const d = [Q[0] - P[0], Q[1] - P[1]], den = n[0] * d[1] - n[1] * d[0]; return Math.abs(den) < 1e-6 ? null : ((P[0] - c[0]) * d[1] - (P[1] - c[1]) * d[0]) / den }
   const line = (g: Finger) => hit(L[JOINT[g][0]], L[JOINT[g][1]])
   const sM = line(pos), sN = neg ? line(neg) : null
   if (sM == null || sM <= 2 || (neg && (sN == null || sN >= -2))) return { c, n, w: null, limM: 60, limP: 60, why: '이웃선 안맞음' }
   const limM = sM
-  let limP = neg ? -sN : k * limM   // 바깥쪽은 이웃 쪽 길이의 k배 (이웃 쪽을 잰 뒤 다시 정함)
-  const fail = (why) => ({ c, n, w: null, limM, limP, why })   // why: 제외된 이유 (디버그 표시용)
-  const skin = (x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
-  const lumaAt = (x, y) => { let t = 0; for (const o of [-2, 0, 2]) { const ix = Math.round((x + u[0] * o) * m.lw / IW), iy = Math.round((y + u[1] * o) * m.lh / IH); t += ix >= 0 && iy >= 0 && ix < m.lw && iy < m.lh ? m.luma[iy * m.lw + ix] : 255 } return t / 3 }
+  let limP = neg ? -(sN as number) : k * limM   // 바깥쪽은 이웃 쪽 길이의 k배 (이웃 쪽을 잰 뒤 다시 정함)
+  const fail = (why: string) => ({ c, n, w: null, limM, limP, why })   // why: 제외된 이유 (디버그 표시용)
+  const skin = (x: number, y: number) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
+  const lumaAt = (x: number, y: number) => { let t = 0; for (const o of [-2, 0, 2]) { const ix = Math.round((x + u[0] * o) * m.lw / IW), iy = Math.round((y + u[1] * o) * m.lh / IH); t += ix >= 0 && iy >= 0 && ix < m.lw && iy < m.lh ? m.luma[iy * m.lw + ix] : 255 } return t / 3 }
   if (!skin(c[0], c[1])) return fail('가운데 마스크 밖')
-  const side = (sg, lim) => {
+  const side = (sg: number, lim: number) => {
     let s = 0; while (s < lim && skin(c[0] + n[0] * sg * (s + 0.25), c[1] + n[1] * sg * (s + 0.25))) s += 0.25
     if (s < lim - 0.25) return { s, kind: '마스크' }
-    const prof = []; for (let t = 0.3 * lim; t <= 0.85 * lim; t += 0.5) prof.push([t, lumaAt(c[0] + n[0] * sg * t, c[1] + n[1] * sg * t)])
+    const prof: [number, number][] = []; for (let t = 0.3 * lim; t <= 0.85 * lim; t += 0.5) prof.push([t, lumaAt(c[0] + n[0] * sg * t, c[1] + n[1] * sg * t)])
     if (prof.length < 5) return null
     const sm = prof.map((_, i) => { let q = 0, kk = 0; for (let j = -2; j <= 2; j++) { const e = prof[i + j]; if (e) { q += e[1]; kk++ } } return q / kk })
     let bi = 0; sm.forEach((v, i) => { if (v < sm[bi]) bi = i })
@@ -58,20 +59,20 @@ function measureAt(L, m: SkinMask, f: Finger, t: number) {
 // 폭 재는 줄: 갈라지는 곳에서 다음 관절 쪽으로 5줄 (관절 길이 대비 간격). 갈라지는 곳을 못 찾았으면 60% 지점 둘레로 같은 5줄.
 // 잰 줄이 3개 이상이면 그중 폭이 가운데인 줄을 결과로, 3개 미만이면 제외 (이유 뒤에 잰 줄 수)
 const LINE_OFFS = [0.06, 0.12, 0.18, 0.24, 0.30]
-function measureFinger(L, m: SkinMask, f: Finger, webT: number | null) {
+function measureFinger(L: Lm, m: SkinMask, f: Finger, webT: number | null) {
   const base = webT ?? 0.6 - LINE_OFFS[2]
   const rs = LINE_OFFS.map((o) => measureAt(L, m, f, Math.min(1, base + o)))
   const ok = rs.filter((r) => r.w != null).sort((p, q) => p.w - q.w)
   if (ok.length >= 3) return ok[(ok.length - 1) >> 1]
-  const bad = rs.find((r) => r.w == null)
+  const bad = rs.find((r) => r.w == null)!
   return { ...bad, why: `${bad.why} · ${ok.length}/5줄` }
 }
-const skinAt = (m: SkinMask, x, y) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
+const skinAt = (m: SkinMask, x: number, y: number) => { const ix = Math.floor(x * m.w / IW), iy = Math.floor(y * m.h / IH); return ix >= 0 && iy >= 0 && ix < m.w && iy < m.h && m.data[iy * m.w + ix] === 1 }
 // 갈라지는 곳: 이웃 손가락과의 틈(마스크가 비어 있는 곳)이 끝나는 지점.
 //  두 손가락 시작 관절의 가운데에서, 두 손가락 방향의 평균 방향으로, 둘째 마디 높이부터 손바닥 쪽으로 걸어가며
 //  틈(4px 이상 이어진 빈 곳)을 지나 처음 피부를 만나는 곳. 양쪽 이웃이 다 잡히면 MCP 에 더 가까운 쪽(비율이 작은 쪽), 한쪽만 잡히면 그쪽.
 //  못 찾으면(손가락이 붙어 있거나 이웃이 없는 바깥쪽) null. web=점(px), webT=갈림 비율 = MCP→PIP 위 위치 (0=MCP, 1=PIP)
-function findWeb(L, m: SkinMask, f: Finger) {
+function findWeb(L: Lm, m: SkinMask, f: Finger) {
   const [ia, ib] = JOINT[f], af = L[ia], bf = L[ib]
   const dx = bf[0] - af[0], dy = bf[1] - af[1], lf = Math.hypot(dx, dy) || 1
   let best = null
@@ -92,4 +93,4 @@ function findWeb(L, m: SkinMask, f: Finger) {
   return best ?? { web: null, webT: null }
 }
 // 프레임 하나에서 다섯 손가락 모두 (갈라지는 곳 + 그 위쪽에서 잰 폭)
-export const measure = (L, m: SkinMask) => Object.fromEntries(FINGERS.map((f) => { const w = findWeb(L, m, f); return [f, { ...measureFinger(L, m, f, w.webT), ...w }] })) as Record<Finger, any>
+export const measure = (L: Lm, m: SkinMask) => Object.fromEntries(FINGERS.map((f) => { const w = findWeb(L, m, f); return [f, { ...measureFinger(L, m, f, w.webT), ...w }] })) as Record<Finger, any>
